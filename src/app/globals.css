@@ -1,0 +1,1413 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   AngkorCinemas — Cyberpunk Neon (dark) / Creamy Parchment (light)
+   Tailwind v4: design tokens live in @theme (no tailwind.config.js needed).
+   Every token below becomes a utility, e.g. --color-accent -> bg-accent.
+
+   THEME SWITCHING
+   The semantic tokens (page, surface, ink, accent, ...) hold DARK values here
+   and are overridden for `html.light` further down. Components only ever
+   reference the semantic names, so one class on <html> re-themes the app.
+   Decorative raw tokens (neon-*, void, charcoal) stay dark-only.
+   ========================================================================== */
+
+@theme {
+  /* ---- Surfaces: deep matte black -> charcoal ------------------------- */
+  --color-void: #05060b; /* page base, near-black with a cool cast */
+  --color-charcoal: #0a0b14; /* panels, modals, card bodies */
+  --color-charcoal-2: #10121f; /* raised surfaces, inputs, placeholder tiles */
+  --color-charcoal-3: #171a2b; /* hover fills, emphasis borders */
+
+  /* ---- Neon accents (dark-mode decoration) ---------------------------- */
+  --color-neon-violet: #a855f7;
+  --color-neon-violet-deep: #6d28d9;
+  --color-neon-cyan: #22d3ee;
+  --color-neon-cyan-deep: #0e7490;
+  --color-neon-magenta: #ff2d95;
+  --color-neon-lime: #b6ff3c;
+
+  /* ======================================================================
+     SEMANTIC TOKENS — these are what components use. Values here are the
+     DARK theme; `html.light` below overrides each one for light mode.
+     ====================================================================== */
+  --color-page: #05060b; /* page background */
+  --color-surface: #0a0b14; /* cards, panels, modals */
+  --color-surface-2: #10121f; /* inputs, raised rows, placeholder art */
+  --color-surface-3: #171a2b; /* hover fills */
+  --color-line: rgb(255 255 255 / 0.1); /* hairline borders/dividers */
+  --color-ink: #ffffff; /* primary text */
+  --color-ink-soft: #d1d5db; /* secondary text */
+  --color-ink-muted: #9ca3af; /* tertiary/meta text */
+  --color-accent: #a855f7; /* primary accent: fills + text */
+  --color-accent-2: #22d3ee; /* secondary accent */
+  --color-accent-3: #ff2d95; /* gradient midpoint */
+  --color-accent-deep: #6d28d9; /* gradient tail / hover */
+  --color-on-accent: #ffffff; /* text/icons sitting on an accent fill */
+  --color-scrim: rgb(0 0 0 / 0.85); /* modal backdrop */
+  --color-score-high: #b6ff3c; /* rating >= 70 */
+  --color-score-mid: #22d3ee; /* rating >= 50 */
+  --color-score-low: #ff2d45; /* rating < 50 */
+
+  /* Gradient FILL stops. Deliberately deeper than the accents above: these sit
+     behind white button text, where bright neon fails badly (white on #22d3ee
+     is only 1.81:1). Every stop below is >= 4.5:1 with white, while the bright
+     accents stay reserved for text/borders on the near-black page, where they
+     score 5-11:1. */
+  --color-fill-1: #5b21b6;
+  --color-fill-2: #7e22ce;
+  --color-fill-3: #c026d3;
+  --color-fill-4: #0e7490;
+
+  /* ---- Neon glow shadows (become shadow-neon, shadow-neon-cyan, ...) ---- */
+  --shadow-neon: 0 0 0 1px rgb(168 85 247 / 0.45), 0 0 22px -4px rgb(168 85 247 / 0.65);
+  /* Tighter variant for the genre chips. The 22px blur on --shadow-neon bleeds
+     ~18px past the pill, which the horizontally scrolling chip row clips; this
+     one stays inside the row's padding so it cannot merge with the underline. */
+  --shadow-chip: 0 0 0 1px rgb(168 85 247 / 0.45), 0 0 10px -5px rgb(168 85 247 / 0.7);
+  --shadow-neon-cyan: 0 0 0 1px rgb(34 211 238 / 0.45), 0 0 22px -4px rgb(34 211 238 / 0.6);
+  --shadow-neon-soft: 0 18px 50px -18px rgb(168 85 247 / 0.5);
+  --shadow-neon-lift: 0 24px 60px -20px rgb(168 85 247 / 0.7), 0 0 30px -12px rgb(34 211 238 / 0.5);
+
+  /* ---- Animations (become animate-neon-pulse, animate-neon-flicker) ----- */
+  --animate-neon-pulse: neon-pulse 2.6s ease-in-out infinite;
+  --animate-neon-flicker: neon-flicker 4s linear infinite;
+  --animate-neon-rise: neon-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes neon-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgb(168 85 247 / 0.7);
+    }
+    50% {
+      opacity: 0.75;
+      box-shadow: 0 0 0 6px rgb(168 85 247 / 0);
+    }
+  }
+
+  @keyframes neon-flicker {
+    0%,
+    96%,
+    100% {
+      opacity: 1;
+    }
+    97% {
+      opacity: 0.72;
+    }
+    98% {
+      opacity: 1;
+    }
+    99% {
+      opacity: 0.85;
+    }
+  }
+
+  @keyframes neon-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ==========================================================================
+   LIGHT THEME — "Creamy / Warm Parchment"
+   Unlayered on purpose: it must outrank the @theme :root defaults.
+   Accent choices are contrast-verified, not eyeballed:
+     #b8461b -> 5.34:1 on white text, 4.74:1 on cream  (AA both ways)
+     #b45309 -> 5.02:1 on white text                   (fill only)
+     #d97706 -> 2.82:1 on cream  => NEVER used as light-mode text
+   ========================================================================== */
+
+html.light {
+  color-scheme: light;
+
+  --color-page: #f4f1ea; /* soft warm cream */
+  --color-surface: #ffffff; /* clean warm white cards */
+  --color-surface-2: #ede8df; /* ivory inputs / raised rows */
+  --color-surface-3: #e3dccd; /* warm hover */
+  --color-line: rgb(45 42 38 / 0.14);
+  --color-ink: #2d2a26; /* deep charcoal / espresso */
+  --color-ink-soft: #57534e;
+  --color-ink-muted: #6b6259;
+  --color-accent: #b8461b; /* terracotta */
+  --color-accent-2: #a84807; /* rich amber; also used as kicker/TV text (5.18:1) */
+  --color-accent-3: #9a3412;
+  --color-accent-deep: #7c2d12;
+  --color-on-accent: #ffffff;
+  --color-scrim: rgb(45 42 38 / 0.55);
+  --color-score-high: #146c34;
+  --color-score-mid: #a84807;
+  --color-score-low: #b91c1c;
+
+  /* Terracotta gradient fills — all >= 4.5:1 behind white text. */
+  --color-fill-1: #7c2d12;
+  --color-fill-2: #9a3412;
+  --color-fill-3: #b8461b;
+  --color-fill-4: #a84807;
+
+  /* Warm, soft shadows instead of neon glow. */
+  --shadow-neon: 0 0 0 1px rgb(184 70 27 / 0.35), 0 2px 10px -2px rgb(122 60 12 / 0.25);
+  --shadow-chip: 0 0 0 1px rgb(184 70 27 / 0.35), 0 2px 6px -3px rgb(122 60 12 / 0.25);
+  --shadow-neon-cyan: 0 0 0 1px rgb(180 83 9 / 0.35), 0 2px 10px -2px rgb(122 60 12 / 0.22);
+  --shadow-neon-soft: 0 18px 45px -20px rgb(90 50 10 / 0.35);
+  --shadow-neon-lift: 0 20px 45px -20px rgb(90 50 10 / 0.4), 0 4px 12px -6px rgb(90 50 10 / 0.18);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   Base layer
+   ========================================================================== */
+
+@layer base {
+  html {
+    scrollbar-color: var(--color-accent-deep) var(--color-page);
+  }
+
+  body {
+    margin: 0;
+    color: var(--color-ink);
+    background-color: var(--color-page);
+    /* Faint circuit grid + two neon light sources: the dark-mode signature. */
+    background-image:
+      radial-gradient(900px 520px at 12% -6%, rgb(168 85 247 / 0.18), transparent 62%),
+      radial-gradient(820px 480px at 88% -2%, rgb(34 211 238 / 0.14), transparent 62%),
+      linear-gradient(rgb(255 255 255 / 0.024) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(255 255 255 / 0.024) 1px, transparent 1px);
+    background-size:
+      auto,
+      auto,
+      44px 44px,
+      44px 44px;
+    background-attachment: fixed;
+  }
+
+  /* Light mode swaps the neon glow for a warm parchment wash. */
+  html.light body {
+    background-image:
+      radial-gradient(900px 520px at 12% -6%, rgb(184 70 27 / 0.07), transparent 62%),
+      radial-gradient(820px 480px at 88% -2%, rgb(180 83 9 / 0.06), transparent 62%),
+      linear-gradient(rgb(45 42 38 / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(45 42 38 / 0.03) 1px, transparent 1px);
+  }
+
+  ::selection {
+    background-color: rgb(168 85 247 / 0.4);
+    color: var(--color-ink);
+  }
+  html.light ::selection {
+    background-color: rgb(184 70 27 / 0.28);
+  }
+
+  /* Consistent accent focus ring for every interactive element. */
+  :focus-visible {
+    /* accent-2 reads as neon cyan on the dark page and amber on cream, and
+       clears 4.5:1 against both, so one token works for both themes. */
+    outline: 2px solid var(--color-accent-2);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-page);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(var(--color-accent-deep), var(--color-accent-2));
+    border: 2px solid var(--color-page);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(var(--color-accent-deep), var(--color-accent));
+  }
+}
+
+/* Theme cross-fade. Applied transiently by the toggle (`.theme-anim`) so we
+   don't leave a permanent transition on every element, which would make
+   hover states feel laggy. */
+.theme-anim,
+.theme-anim * {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease,
+    fill 0.3s ease !important;
+}
+
+/* ==========================================================================
+   Component overrides
+   ========================================================================== */
+
+@layer components {
+  /* Neon gradient text — wordmark and headline accents. */
+  .neon-text {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent-2) 0%,
+      var(--color-accent) 50%,
+      var(--color-accent-3) 100%
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  /* Panels: modals, admin dashboard, detail sheets. */
+  .neon-panel {
+    background-color: var(--color-surface);
+    background-image: linear-gradient(
+      165deg,
+      color-mix(in oklab, var(--color-accent) 10%, transparent) 0%,
+      transparent 38%,
+      color-mix(in oklab, var(--color-accent-2) 8%, transparent) 100%
+    );
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+      0 0 0 1px color-mix(in oklab, var(--color-accent) 22%, transparent),
+      var(--shadow-neon-soft);
+  }
+
+  /* ----------------------------------------------------------------------
+     BUTTONS
+
+     Contrast budget that shapes every rule below: the fill stops are already
+     at the AA floor behind white text (the brightest, --color-fill-3, is
+     4.71:1), so nothing here may LIGHTEN the area behind the label. All the
+     depth comes from three places that cannot touch text legibility:
+
+       1. outer glow          -> box-shadow, outside the box entirely
+       2. glass bevels        -> 1px inset highlights on the edges only
+       3. the moving gloss    -> a DARKENING band, so the sweep actually
+                                 raises contrast while it crosses the label
+     ====================================================================== */
+
+  /* Primary action. */
+  .btn-neon {
+    position: relative;
+    /* The gloss is a child so the sweep can travel across the whole face. */
+    isolation: isolate;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    padding: 0.6875rem 1.375rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-on-accent);
+    background-image: linear-gradient(
+      115deg,
+      var(--color-fill-1) 0%,
+      var(--color-fill-2) 34%,
+      var(--color-fill-3) 68%,
+      var(--color-fill-4) 100%
+    );
+    background-size: 220% 100%;
+    background-position: 0% 50%;
+    /* Glass: a lit top edge over a dark lower lip, plus a hairline rim. The
+       top bevel is the one highlight; the bottom one is a shadow. */
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.3),
+      inset 0 -1px 0 0 rgb(0 0 0 / 0.22),
+      inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      0 0 0 1px color-mix(in oklab, var(--color-accent) 45%, transparent),
+      var(--shadow-neon);
+    transition:
+      background-position 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* A dark band sweeping across the face. Darkening, not lightening: the label
+     underneath gets *more* contrast as it passes. */
+  .btn-neon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: linear-gradient(
+      100deg,
+      transparent 34%,
+      rgb(0 0 0 / 0.26) 47%,
+      rgb(0 0 0 / 0.26) 53%,
+      transparent 66%
+    );
+    background-size: 260% 100%;
+    background-position: 200% 50%;
+    opacity: 0;
+    transition:
+      background-position 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .btn-neon:hover {
+    background-position: 100% 50%;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.42),
+      inset 0 -1px 0 0 rgb(0 0 0 / 0.24),
+      inset 0 0 0 1px rgb(255 255 255 / 0.16),
+      0 0 0 1px color-mix(in oklab, var(--color-accent-2) 65%, transparent),
+      var(--shadow-neon-lift);
+    transform: translateY(-2px);
+  }
+  .btn-neon:hover::before {
+    background-position: -60% 50%;
+    opacity: 1;
+  }
+  .btn-neon:active {
+    transform: translateY(0) scale(0.985);
+  }
+  .btn-neon:disabled,
+  .btn-neon[aria-disabled='true'] {
+    transform: none;
+  }
+
+  /* Secondary action: frosted glass pane, gradient rim, glow on hover. */
+  .btn-neon-ghost {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    padding: 0.6875rem 1.375rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-accent-2);
+    /* Frosted pane: a translucent tint over whatever is behind the button.
+       Kept to 8% so the label keeps its contrast on any backdrop. */
+    background-color: color-mix(in oklab, var(--color-accent-2) 8%, transparent);
+    backdrop-filter: blur(10px) saturate(1.4);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent-2) 40%, transparent);
+    transition:
+      background-color 0.25s ease,
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      color 0.25s ease,
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Gradient rim drawn in a pseudo-element, so it can be a gradient while the
+     element's own box-shadow stays a solid hairline for crispness. */
+  .btn-neon-ghost::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background-image: linear-gradient(
+      130deg,
+      var(--color-accent-2),
+      var(--color-accent) 50%,
+      transparent 85%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.55;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+  .btn-neon-ghost:hover {
+    color: var(--color-on-accent);
+    background-color: var(--color-accent-deep);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.22),
+      0 0 0 1px color-mix(in oklab, var(--color-accent-2) 60%, transparent),
+      var(--shadow-neon);
+    transform: translateY(-2px);
+  }
+  .btn-neon-ghost:hover::before {
+    opacity: 1;
+  }
+  .btn-neon-ghost:active {
+    transform: translateY(0) scale(0.985);
+  }
+
+  /* Light mode only: `--color-accent-2` (#a84807) measures 4.34:1 on the cream
+     page once the 8% tint is composited, which is just under the 4.5:1 that
+     14px semibold text needs. `--color-accent-deep` (#7c2d12) is the same hue
+     a few steps darker and clears it comfortably, and the hover fill is already
+     that colour, so the button no longer shifts hue as it fills. */
+  html.light .btn-neon-ghost {
+    color: var(--color-accent-deep);
+    background-color: color-mix(in oklab, var(--color-accent-deep) 8%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.4),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent-deep) 40%, transparent);
+  }
+  html.light .btn-neon-ghost:hover {
+    color: var(--color-on-accent);
+    background-color: var(--color-accent-deep);
+  }
+
+  /* "Saved to watchlist" state — uses the score-high token so it flips
+     from neon lime (dark) to a legible deep green (light). */
+  .is-saved {
+    color: var(--color-on-accent);
+    background-color: var(--color-score-high);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.3),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-score-high) 50%, transparent);
+  }
+  .is-saved-ghost {
+    color: var(--color-score-high);
+    background-color: color-mix(in oklab, var(--color-score-high) 10%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-score-high) 50%, transparent);
+  }
+  /* Lift and bloom the confirmation state too, so pressing "Add to Watchlist"
+     is visibly rewarded rather than just changing colour. */
+  .is-saved:hover,
+  .is-saved-ghost:hover {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.34),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-score-high) 70%, transparent),
+      0 0 0 1px color-mix(in oklab, var(--color-score-high) 45%, transparent),
+      0 8px 26px -8px color-mix(in oklab, var(--color-score-high) 75%, transparent);
+  }
+
+  /* Form fields. */
+  .neon-input {
+    width: 100%;
+    border-radius: 0.5rem;
+    background-color: var(--color-surface-2);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition:
+      box-shadow 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .neon-input::placeholder {
+    color: var(--color-ink-muted);
+  }
+  .neon-input:hover {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-ink) 18%, transparent);
+  }
+  .neon-input:focus {
+    outline: none;
+    background-color: var(--color-surface-3);
+    box-shadow:
+      inset 0 0 0 1px var(--color-accent),
+      0 0 18px -6px color-mix(in oklab, var(--color-accent) 70%, transparent);
+  }
+
+  /* Genre filter chips. */
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.4375rem 1.125rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-ink-soft);
+    /* Frosted pill. `ink-soft` on `surface` has ~14:1 of headroom in dark
+       mode, so the 5% wash costs nothing and still reads as glass. */
+    background-color: color-mix(in oklab, var(--color-surface) 82%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.1),
+      inset 0 0 0 1px var(--color-line);
+    transition:
+      color 0.25s ease,
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.25s ease,
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Gradient rim, revealed on hover. */
+  .chip::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background-image: linear-gradient(
+      120deg,
+      var(--color-accent-2),
+      var(--color-accent) 55%,
+      transparent 90%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+  .chip:hover {
+    color: var(--color-ink);
+    background-color: var(--color-surface-3);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 45%, transparent),
+      0 0 18px -6px color-mix(in oklab, var(--color-accent) 70%, transparent);
+    transform: translateY(-1px);
+  }
+  .chip:hover::before {
+    opacity: 0.8;
+  }
+  .chip:active {
+    transform: translateY(0) scale(0.97);
+  }
+  .chip-on {
+    color: var(--color-on-accent);
+    background-color: var(--color-surface);
+    background-image: linear-gradient(
+      110deg,
+      var(--color-fill-1),
+      var(--color-fill-3) 55%,
+      var(--color-fill-4)
+    );
+    background-size: 160% 100%;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.26),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 40%, transparent),
+      var(--shadow-chip);
+    transition:
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .chip-on:hover {
+    background-color: transparent;
+    background-image: linear-gradient(
+      110deg,
+      var(--color-fill-2),
+      var(--color-fill-3) 55%,
+      var(--color-fill-4)
+    );
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.36),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent-2) 55%, transparent),
+      var(--shadow-chip),
+      0 0 20px -6px color-mix(in oklab, var(--color-accent) 80%, transparent);
+    transform: translateY(-1px);
+  }
+  .chip-on::before {
+    opacity: 0;
+  }
+  /* Active indicator. Anchored to the selected pill itself, so it tracks the tab
+     without any measuring in JS, and sits --chip-underline-gap below the button
+     so the two never touch. The row's padding-bottom reserves the space. */
+  .chip-on::after {
+    content: '';
+    position: absolute;
+    left: 16%;
+    right: 16%;
+    bottom: -0.5rem;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-accent) 22%,
+      var(--color-accent) 78%,
+      transparent
+    );
+    box-shadow: 0 0 8px -2px var(--color-accent);
+    pointer-events: none;
+    animation: chip-underline-in 0.24s ease-out;
+  }
+  @keyframes chip-underline-in {
+    from {
+      opacity: 0;
+      transform: scaleX(0.35);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  /* Filter dropdowns (sort, year). Same glass language as the chips, plus a
+     caret that picks up the accent so the control reads as one piece. */
+  .glass-select {
+    border-radius: 999px;
+    padding: 0.5625rem 2.25rem 0.5625rem 1.125rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    background-color: color-mix(in oklab, var(--color-surface) 82%, transparent);
+    background-image: linear-gradient(120deg, var(--color-accent) 0%, transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23a855f7' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat, no-repeat;
+    background-position: 0% 0, right 0.875rem center;
+    background-size: 100% 100%, 0.625rem 0.4375rem;
+    backdrop-filter: blur(8px);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.1),
+      inset 0 0 0 1px var(--color-line);
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition:
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.25s ease;
+  }
+  .glass-select:hover {
+    background-color: var(--color-surface-3);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 50%, transparent),
+      0 0 18px -6px color-mix(in oklab, var(--color-accent) 65%, transparent);
+  }
+  .glass-select:focus {
+    outline: none;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px var(--color-accent),
+      0 0 20px -6px color-mix(in oklab, var(--color-accent) 80%, transparent);
+  }
+  /* Light mode: the accent wash and caret flip to the warm tokens, otherwise
+     the neon purple reads as an out-of-place stain on cream. */
+  html.light .glass-select {
+    background-image: linear-gradient(120deg, var(--color-accent) 0%, transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23b8461b' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  /* The native dropdown list is opaque, so it needs explicit contrast in both
+     themes rather than inheriting the frosted treatment. */
+  .glass-select option {
+    color: var(--color-ink);
+    background-color: var(--color-surface);
+  }
+
+  /* Media-type badges: Movie reads accent, TV reads accent-2. */
+  .badge-type {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    background-color: color-mix(in oklab, var(--color-page) 72%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .badge-movie {
+    color: var(--color-accent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 70%, transparent),
+      0 0 14px -4px color-mix(in oklab, var(--color-accent) 90%, transparent);
+  }
+  .badge-tv {
+    color: var(--color-accent-2);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent-2) 70%, transparent),
+      0 0 14px -4px color-mix(in oklab, var(--color-accent-2) 90%, transparent);
+  }
+
+  /* Small uppercase kicker used above hero copy and panel titles. */
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    padding: 0.375rem 1rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-accent-2);
+    background-color: color-mix(in oklab, var(--color-accent-2) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent-2) 45%, transparent);
+  }
+
+  /* Hairline divider that fades from accent to transparent. */
+  .neon-rule {
+    height: 1px;
+    border: 0;
+    background-image: linear-gradient(
+      90deg,
+      var(--color-accent),
+      var(--color-accent-2),
+      transparent
+    );
+    opacity: 0.55;
+  }
+
+  /* Theme toggle pill. */
+  /* Shared circular icon button. `.theme-toggle` layers its own spin on top of
+     this, so the About Us pill in the mobile header reuses the chrome without
+     inheriting the rotate. */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    color: var(--color-ink-soft);
+    background-color: var(--color-surface-2);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  .icon-btn:hover {
+    color: var(--color-accent);
+    background-color: var(--color-surface-3);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 50%, transparent);
+  }
+  .theme-toggle:hover {
+    transform: rotate(-18deg);
+  }
+
+  /* ----------------------------------------------------------------------
+     TEAM CARDS
+
+     Contrast budget: the glass fill is `surface` at 78% over the page, so the
+     backdrop behind every label is within a couple of percent of the page the
+     rest of the app is audited against. The purple glow is therefore split in
+     two — a masked gradient RIM (1px, on the border) and an outer box-shadow
+     bloom (outside the box) — plus a wash confined to the photo frame. Nothing
+     decorative is allowed to sit under the name, role or blurb.
+     ====================================================================== */
+  .team-card {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    background-color: color-mix(in oklab, var(--color-surface) 78%, transparent);
+    /* The photo band is transparent, so the wash the photo sits on is the
+       card's own — this is what the letterbox reveals. */
+    background-image: linear-gradient(
+      155deg,
+      color-mix(in oklab, var(--color-accent) 20%, transparent) 0%,
+      color-mix(in oklab, var(--color-surface) 76%, transparent) 46%,
+      color-mix(in oklab, var(--color-accent-2) 14%, transparent) 100%
+    );
+    backdrop-filter: blur(14px) saturate(1.35);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.09),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 16%, transparent),
+      0 18px 44px -22px rgb(0 0 0 / 0.85);
+    transition:
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Purple gradient rim — the `xor` mask keeps only the 1px padding ring. */
+  .team-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1px;
+    background-image: linear-gradient(
+      145deg,
+      var(--color-accent) 0%,
+      var(--color-accent-2) 38%,
+      transparent 68%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+    transition: opacity 0.45s ease;
+    pointer-events: none;
+  }
+  .team-card:hover {
+    transform: translateY(-6px);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.14),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 26%, transparent),
+      0 28px 60px -24px rgb(0 0 0 / 0.9),
+      0 0 40px -8px color-mix(in oklab, var(--color-accent) 90%, transparent);
+  }
+  .team-card:hover::before {
+    opacity: 1;
+  }
+
+  /* ---- Photo frame ----------------------------------------------------
+     Two boxes, because the sources span 9:16, 3:4, 16:9, 16:9 and ~1:1 and no
+     single shape fits all of them.
+
+     `.team-photo-frame` is the band: a fixed height shared by all five cards,
+     centred, so the row stays aligned and nothing collapses while an image
+     loads. It paints nothing itself.
+
+     `.team-photo-plate` is the dark backing, and it takes the photo's own
+     `--photo-ratio`, so the backing hugs the picture rather than filling the
+     band. Painting `bg-black/40` on the band itself is what leaves the two
+     16:9 photos marooned on 90px slabs above and below; on the plate it never
+     happens at all.
+
+     The plate's width is `min(100%, band x ratio)` and its height is derived
+     from that by `aspect-ratio`. Deriving width-first is the whole trick: set
+     `height: 100%` instead and a photo too wide for the band keeps the full
+     band height, so it floats on a slab of backing. Width-first means the plate
+     shrinks to the photo at every size, and `contain` inside a plate that
+     already has the photo's shape is then a no-op — nothing is ever cropped. */
+  .team-photo-frame {
+    /* Single column on phones: one card is in view, so the band is capped but
+       still follows the photo's own ratio, and a wide photo is not boxed in
+       dead space. */
+    --photo-h: 28rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: var(--photo-ratio, 1);
+    max-height: var(--photo-h);
+  }
+  @media (min-width: 640px) {
+    /* Two or three cards share the row, so the band switches to one height for
+       all of them and each plate derives its own width from the photo. */
+    .team-photo-frame {
+      /* Tall enough that the 16:9 photos still reach the full card width — a
+         landscape is width-limited, so a taller band only costs the portrait
+         nothing — and tall enough that the portraits, which ARE band-limited,
+         come out larger than the shared square this replaced. A shorter band
+         (h-64/h-72) shrinks the two portraits to roughly half and two thirds of
+         their size before any of this work. */
+      --photo-h: 24rem;
+      width: auto;
+      height: var(--photo-h);
+      /* `aspect-ratio` has to be dropped here, not just left overridden. Carried
+         over from the phone rule it would pair a definite 24rem height with the
+         photo's own ratio and make the band's width definite too — 24rem x 16/9
+         = 683px for the two landscape photos. A definite width is exactly the
+         case where flex `stretch` does not apply, so the band stopped tracking
+         the card, the card grew to fit the band, and Roth/Rothna came out 683px
+         wide against 357px for the other three. Only the plate may take the
+         photo's ratio at this breakpoint. */
+      aspect-ratio: auto;
+      max-width: 100%;
+      max-height: none;
+    }
+  }
+  .team-photo-plate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* `100%` here is the frame's width, so this caps at the card and the other
+       term caps at the band: whichever is tighter, the plate hugs the photo. */
+    width: min(100%, calc(var(--photo-h) * var(--photo-ar)));
+    aspect-ratio: var(--photo-ratio, 1);
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background-color: rgb(0 0 0 / 0.4);
+  }
+  /* `object-position` does nothing under `contain`, but the drop-shadow is what
+     stops the photo reading as part of the plate rather than sitting on it. */
+  .team-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 14px 22px rgb(0 0 0 / 0.45));
+    transition:
+      filter 0.45s ease,
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* A lift, not a zoom. The plate is sized to the photo, so scaling the image
+     would push it out of its own box and clip it against the plate edge. */
+  .team-card:hover .team-photo-img {
+    transform: translateY(-4px);
+    filter: drop-shadow(0 20px 30px rgb(0 0 0 / 0.55)) saturate(1.08);
+  }
+  html.light .team-photo-img {
+    filter: drop-shadow(0 10px 20px rgb(90 50 10 / 0.28));
+  }
+  /* The photo's shadow has to stay legible over the lighter light-mode wash. */
+  html.light .team-card:hover .team-photo-img {
+    filter: drop-shadow(0 16px 24px rgb(90 50 10 / 0.34)) saturate(1.08);
+  }
+  html.light .team-photo-plate {
+    /* Same dark mat in light mode: a photo on a dark backing reads the same
+       either way, and lightening it puts a pale photo back into the card. */
+    background-color: rgb(0 0 0 / 0.28);
+  }
+
+  /* Journey paragraph panel — same glass as the cards, one step flatter. */
+  .team-journey {
+    border-radius: 1.25rem;
+    background-color: color-mix(in oklab, var(--color-surface) 74%, transparent);
+    backdrop-filter: blur(14px) saturate(1.35);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.07),
+      inset 0 0 0 1px var(--color-line),
+      0 18px 44px -24px rgb(0 0 0 / 0.8);
+  }
+  html.light .team-journey {
+    background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px var(--color-line),
+      0 18px 40px -24px rgb(90 50 10 / 0.35);
+  }
+
+  /* Stats strip above the grid. */
+  .team-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 1rem;
+    padding: 1.125rem 0.75rem;
+    text-align: center;
+    background-color: color-mix(in oklab, var(--color-surface) 78%, transparent);
+    backdrop-filter: blur(14px) saturate(1.35);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.08),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 16%, transparent),
+      0 14px 34px -20px rgb(0 0 0 / 0.85);
+    transition:
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .team-stat:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.12),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 28%, transparent),
+      0 22px 46px -20px rgb(0 0 0 / 0.9),
+      0 0 28px -8px color-mix(in oklab, var(--color-accent) 80%, transparent);
+  }
+  /* DOM order is dt -> dd for correct <dl> semantics; flex order keeps the
+     big number visually on top. */
+  .team-stat-label { order: 2; }
+  .team-stat-value { order: 1; }
+  .team-stat-sub { order: 3; }
+  .team-stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent-2) 0%,
+      var(--color-accent) 55%,
+      var(--color-accent-3) 100%
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .team-stat-label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  .team-stat-sub {
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    color: var(--color-ink-muted);
+  }
+  html.light .team-stat {
+    background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 20%, transparent),
+      0 14px 30px -20px rgb(90 50 10 / 0.4);
+  }
+  html.light .team-stat:hover {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 30%, transparent),
+      var(--shadow-neon-lift);
+  }
+
+  /* ---- Carousel -------------------------------------------------------
+     The track is a genuine horizontal scroll box (not a transform-shifted
+     strip) so touch swipe, keyboard scrolling and the timed auto-advance all
+     drive one `scrollLeft`. `--per` is the only breakpoint source; the JS reads
+     the measured step back off the DOM instead of duplicating these numbers.
+     No `scroll-behavior` in CSS on purpose: `scrollTo({behavior:'auto'})` falls
+     back to the CSS value, which would make the cycle's instant reset smooth. */
+  .team-carousel {
+    position: relative;
+  }
+  .team-carousel-track {
+    --per: 1;
+    --carousel-gap: 1.5rem;
+    --carousel-bleed: 0.75rem;
+    display: flex;
+    gap: var(--carousel-gap);
+    /* Bleed the padding out with a matching negative margin so the card glow
+       is not clipped, while the cards still fill the real content width. The
+       block bleed is the same trick vertically: a scroll box clips its overflow
+       in both axes, so the card's -6px hover lift (and the photo's -4px on top
+       of it) needs 10px of room inside the box to not get its top cut off. */
+    margin-block: calc(-1 * var(--carousel-bleed));
+    padding-block: var(--carousel-bleed);
+    margin-inline: calc(-1 * var(--carousel-bleed));
+    padding-inline: var(--carousel-bleed);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--carousel-bleed);
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .team-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+  .team-carousel-item {
+    display: flex;
+    flex: 0 0 calc((100% - (var(--per) - 1) * var(--carousel-gap)) / var(--per));
+    scroll-snap-align: start;
+  }
+  .team-carousel-item > .team-card {
+    width: 100%;
+  }
+  .team-carousel-track:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+    border-radius: 1.25rem;
+  }
+
+  /* Auto-advance progress. The animation's duration is the dwell the timer
+     actually used, and it is paused with the carousel, so the bar is the honest
+     answer to "is it still going to move on its own?". */
+  .team-carousel-progress {
+    display: block;
+    height: 2px;
+    margin-top: 1.25rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background-color: color-mix(in oklab, var(--color-ink-muted) 22%, transparent);
+  }
+  .team-carousel-progress::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    transform-origin: left center;
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent-2) 0%,
+      var(--color-accent) 55%,
+      var(--color-accent-3) 100%
+    );
+    animation: team-carousel-dwell var(--cycle) linear both;
+  }
+  .team-carousel-progress[data-paused='true']::after {
+    animation-play-state: paused;
+  }
+  @keyframes team-carousel-dwell {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .team-carousel-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.75rem;
+  }
+  .team-carousel-arrow {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    color: var(--color-ink-soft);
+    background-color: color-mix(in oklab, var(--color-surface) 78%, transparent);
+    backdrop-filter: blur(14px) saturate(1.35);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .team-carousel-arrow:hover:not(:disabled) {
+    color: var(--color-ink);
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 55%, transparent),
+      0 0 22px -4px color-mix(in oklab, var(--color-accent) 55%, transparent);
+  }
+  html.light .team-carousel-arrow {
+    background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
+  }
+
+  .team-carousel-dots {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  /* The button is the 24px tap target; the dot itself is the ::after pill. */
+  .team-carousel-dot {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    transition: width 0.25s ease;
+  }
+  .team-carousel-dot::after {
+    content: '';
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background-color: color-mix(in oklab, var(--color-ink-muted) 55%, transparent);
+    transition:
+      width 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  /* The inactive dot is a control boundary, so it needs 3:1 against the page.
+     The shared mix only reached 2.24:1 in light mode, hence the explicit
+     darker override. Scoped away from the active dot so the gradient wins. */
+  html.light .team-carousel-dot:not([aria-current='true'])::after {
+    background-color: color-mix(in oklab, var(--color-ink) 55%, transparent);
+  }
+  .team-carousel-dot:hover::after {
+    background-color: color-mix(in oklab, var(--color-ink) 70%, transparent);
+  }
+  .team-carousel-dot[aria-current='true'] {
+    width: 2.25rem;
+  }
+  .team-carousel-dot[aria-current='true']::after {
+    width: 1.5rem;
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent-2) 0%,
+      var(--color-accent) 55%,
+      var(--color-accent-3) 100%
+    );
+    box-shadow: 0 0 14px -2px color-mix(in oklab, var(--color-accent) 70%, transparent);
+  }
+
+  .team-tag {
+    border-radius: 999px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-ink-soft);
+    background-color: color-mix(in oklab, var(--color-page) 62%, transparent);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+  }
+
+  .team-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    color: var(--color-ink-soft);
+    background-color: color-mix(in oklab, var(--color-page) 55%, transparent);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
+  }
+  .team-link:hover {
+    color: var(--color-on-accent);
+    background-color: var(--color-accent-deep);
+    box-shadow: var(--shadow-neon);
+    transform: translateY(-2px);
+  }
+
+  /* Light mode: drop the neon bloom for a warm terracotta lift, matching
+     --shadow-neon-lift, and stop the glass washing the card out. */
+  html.light .team-card {
+    background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 20%, transparent),
+      0 18px 40px -22px rgb(90 50 10 / 0.4);
+  }
+  html.light .team-card:hover {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 30%, transparent),
+      var(--shadow-neon-lift);
+  }
+}
+
+/* Respect reduced-motion: strip the decorative loops, keep static styling. */
+@media (min-width: 640px) {
+  .team-carousel-track {
+    --per: 2;
+  }
+}
+@media (min-width: 1024px) {
+  .team-carousel-track {
+    --per: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-neon-pulse,
+  .animate-neon-flicker,
+  .animate-neon-rise {
+    animation: none !important;
+  }
+  .btn-neon,
+  .btn-neon::before,
+  .btn-neon-ghost,
+  .btn-neon-ghost::before,
+  .chip,
+  .chip::before,
+  .chip-on,
+  .glass-select,
+  .team-card,
+  .team-card::before,
+  .team-photo-img,
+  .team-link,
+  .team-stat,
+  .team-carousel-arrow,
+  .team-carousel-dot,
+  .team-carousel-dot::after,
+  .icon-btn,
+  .theme-toggle {
+    transition: none !important;
+  }
+  /* The lift, the sweep and the gloss are all motion. Keep the static glass
+     bevels and the hover glow, which convey state without moving anything. */
+  .btn-neon:hover,
+  .btn-neon:active,
+  .btn-neon-ghost:hover,
+  .btn-neon-ghost:active,
+  .chip:hover,
+  .chip:active,
+  .chip-on:hover,
+  .team-card:hover,
+  .team-link:hover,
+  .team-stat:hover,
+  .team-carousel-arrow:hover:not(:disabled) {
+    transform: none !important;
+  }
+  /* The photo lift is motion too, so the still frame is what remains. */
+  .team-card:hover .team-photo-img {
+    transform: none !important;
+  }
+  /* Autoplay is off entirely under reduced motion, so the dwell bar has nothing
+     to report; kill the animation so it cannot sit frozen at zero width. */
+  .team-carousel-progress::after {
+    animation: none !important;
+  }
+  .btn-neon:hover,
+  .btn-neon:hover::before {
+    background-position: 0% 50% !important;
+  }
+  .btn-neon:hover::before {
+    opacity: 0 !important;
+  }
+  .chip-on::after {
+    animation: none !important;
+  }
+  .theme-anim,
+  .theme-anim * {
+    transition: none !important;
+  }
+}
+
+/* Forced-colors (Windows High Contrast): background-clip:text with a
+   transparent color can render as invisible text, so hand colors back
+   to the system palette. */
+@media (forced-colors: active) {
+  .neon-text,
+  .team-stat-value,
+  .team-carousel-dot[aria-current='true']::after {
+    background-image: none;
+    color: CanvasText;
+  }
+  /* Keep the active dot legible as a selection when gradients are stripped. */
+  .team-carousel-dot[aria-current='true']::after {
+    forced-color-adjust: none;
+    background-color: Highlight;
+  }
+  .btn-neon,
+  .btn-neon-ghost,
+  .chip,
+  .chip-on,
+  .kicker,
+  .badge-type,
+  .glass-select,
+  .team-card,
+  .team-tag,
+  .team-link,
+  .team-stat,
+  .team-journey,
+  .team-carousel-arrow,
+  .team-carousel-dot::after,
+  .icon-btn,
+  .theme-toggle {
+    border: 1px solid ButtonBorder;
+  }
+  /* The dwell fill is a gradient, so forced-colors would leave the bar reading
+     as permanently empty; hand the fill the system selection colour instead. */
+  .team-carousel-progress {
+    border: 1px solid ButtonBorder;
+  }
+  .team-carousel-progress::after {
+    forced-color-adjust: none;
+    background-image: none;
+    background-color: Highlight;
+  }
+  /* Gradient rims, frosted panes and glows are all dropped by forced-colors
+     already; the pseudo-elements must not be left painting a second edge. */
+  .btn-neon::before,
+  .btn-neon-ghost::before,
+  .chip::before,
+  .team-card::before {
+    display: none;
+  }
+  .btn-neon,
+  .btn-neon-ghost,
+  .chip,
+  .chip-on {
+    background-image: none;
+  }
+  .glass-select {
+    background-image: none;
+  }
+  .chip-on {
+    color: HighlightText;
+    background-color: Highlight;
+  }
+  .chip-on:hover {
+    color: HighlightText;
+    background-color: Highlight;
+  }
+}
