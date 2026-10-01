@@ -58,7 +58,15 @@ type TeamMember = {
   name: string
   role: string
   image: string
-  /** Intrinsic size, so the square frame reserves the right space before load. */
+  /**
+   * Intrinsic size, so the frame reserves the right space before load — and,
+   * more importantly, so the photo plate gets the correct aspect ratio. When
+   * these disagree with the actual file, the backing ends up wider than the
+   * picture and `object-fit: contain` letterboxes the photo inside its own
+   * plate. The regression suite compares each value against the image's real
+   * `naturalWidth`/`naturalHeight`, so a swapped-in file fails rather than
+   * quietly shipping grey bars.
+   */
   width: number
   height: number
   blurb: string
@@ -71,6 +79,25 @@ type TeamMember = {
   focus: string[]
   links: TeamLink[]
 }
+
+/**
+ * The instructor, shown above the member carousel rather than inside it.
+ *
+ * Kept separate from `TEAM` on purpose. The carousel is a peer row of the students
+ * who built the thing, and the instructor in that row would read as another
+ * contributor. Up top, in their own wider card, the relationship is accurate: the
+ * person teaching, distinct from the team.
+ */
+const SUPERVISOR = {
+  name: 'Srorng Sokcheat',
+  role: 'Instructor',
+  image: '/Teacher.jpg',
+  /** Real pixel dimensions of the file — see the note on `TeamMember.width`. */
+  width: 1170,
+  height: 1147,
+  blurb:
+    'Provided exceptional guidance throughout the architectural scope and development lifecycle, facilitating rigorous code review cycles and maintaining industry-grade quality standards. Ensured the platform met strict technical readiness criteria by providing critical feedback, constructive oversight, and technical mentorship at every stage of execution.',
+} satisfies Omit<TeamMember, 'id' | 'quote' | 'focus' | 'links'>
 
 /**
  * TODO(real-links): the `links` below are project-level placeholders on our own
@@ -115,8 +142,8 @@ const TEAM: TeamMember[] = [
     name: 'Roth',
     role: 'UI/UX Designer & Frontend Developer',
     image: '/Roth.jpg',
-    width: 1280,
-    height: 720,
+    width: 548,
+    height: 568,
     blurb:
       'Shapes how AngkorCinemas looks and feels, carrying the design system all the way into shipped components.',
     quote: 'Good design goes invisible once it is working.',
@@ -131,8 +158,8 @@ const TEAM: TeamMember[] = [
     name: 'Rothna',
     role: 'Backend & Database Engineer',
     image: '/Rothna.jpg',
-    width: 1280,
-    height: 720,
+    width: 528,
+    height: 592,
     blurb:
       'Builds and tunes the backend services, keeping queries and sign-in fast under real traffic.',
     quote: 'Fast is a feature. Boring is a promise.',
@@ -160,9 +187,14 @@ const TEAM: TeamMember[] = [
   },
 ]
 
-/** Headline metrics for the strip above the grid. */
+/**
+ * Headline metrics for the strip above the grid. The member count is derived
+ * rather than typed, because it now has to stay consistent with two places: this
+ * strip and the carousel below it. Hardcoding `5` and adding the instructor card
+ * elsewhere is exactly the drift this avoids.
+ */
 const STATS: { value: string; label: string; sub: string }[] = [
-  { value: '5', label: 'Team Members', sub: 'One shared goal' },
+  { value: String(TEAM.length), label: 'Team Members', sub: 'Plus one instructor' },
   { value: '100+', label: 'Hours Built', sub: 'Design, code and testing' },
   { value: 'TMDB', label: 'API Integrated', sub: 'A live movie catalogue' },
   { value: '1', label: 'Enterprise Vision', sub: 'Built to scale' },
@@ -202,10 +234,13 @@ function TeamLinkIcon({ icon }: { icon: TeamIcon }) {
  * flex container, so the band is the same for all five cards and cannot collapse
  * while an image loads. The plate inside it is sized from the member's own
  * intrinsic ratio and carries the dark backing, so that backing hugs the picture
- * instead of filling the whole band — the sources span 9:16 to 16:9, and a
+ * instead of filling the whole band — the sources span 9:16 to roughly 1:1, and a
  * backing painted on a single shared shape either crops the portrait or leaves
  * the wide photos marooned on a slab. `contain` inside a plate that already has
  * the photo's shape means nothing is ever cropped.
+ *
+ * Those `width`/`height` values are read from the files, not guessed — see the
+ * note on `TeamMember.width` for what a wrong one costs.
  *
  * `--photo-ratio` and `--photo-ar` are set on the card because both boxes read
  * them, and a custom property only inherits downwards: set on the plate alone,
@@ -281,6 +316,58 @@ function MemberCard({ member }: { member: TeamMember }) {
             </a>
           ))}
         </div>
+      </div>
+    </article>
+  )
+}
+
+/**
+ * The instructor's card, above the member carousel.
+ *
+ * A separate component rather than a `MemberCard` variant, because the two cards
+ * answer different questions: this one says who taught the work, the carousel
+ * says who did it. Forcing it through `MemberCard` would mean stubbing a quote, a
+ * focus list and social links that do not apply to the relationship, and it would
+ * put the instructor in a peer row of contributors.
+ *
+ * The photo reuses the same frame/plate split as the member cards, so the
+ * `object-fit` behaviour is identical and sized from its own ratio — the mismatch
+ * that letterboxed Roth's photo would otherwise show here too.
+ */
+function SupervisorCard() {
+  return (
+    <article
+      className="team-card team-supervisor"
+      style={
+        {
+          '--photo-ratio': `${SUPERVISOR.width} / ${SUPERVISOR.height}`,
+          '--photo-ar': `${SUPERVISOR.width / SUPERVISOR.height}`,
+        } as CSSProperties
+      }
+    >
+      <div className="team-photo-frame">
+        <span className="team-photo-plate">
+          <img
+            className="team-photo-img"
+            src={SUPERVISOR.image}
+            alt={`${SUPERVISOR.name}, ${SUPERVISOR.role}`}
+            width={SUPERVISOR.width}
+            height={SUPERVISOR.height}
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+      </div>
+
+      <div className="flex flex-1 flex-col p-6 sm:p-7">
+        <span className="kicker self-start">Instructor</span>
+        <h3 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-ink">
+          {SUPERVISOR.name}
+        </h3>
+        <p className="mt-1.5 text-sm font-semibold text-accent-2">{SUPERVISOR.role}</p>
+        <p className="mt-3 max-w-prose text-pretty text-sm leading-relaxed text-ink-soft">
+          {SUPERVISOR.blurb}
+        </p>
       </div>
     </article>
   )
@@ -603,7 +690,8 @@ export function TeamPage({ onClose }: { onClose: () => void }) {
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-pretty text-ink-soft">
             Five students turning a class project into a real movie platform — one
-            layer at a time, from the database up to the pixels.
+            layer at a time, from the database up to the pixels — with their
+            instructor keeping the scope honest.
           </p>
           <hr className="neon-rule mx-auto mt-8 w-40" />
         </header>
@@ -638,9 +726,22 @@ export function TeamPage({ onClose }: { onClose: () => void }) {
           ))}
         </dl>
 
-        <div className="mt-14">
-          <TeamCarousel />
+        <div className="mt-12">
+          <SupervisorCard />
         </div>
+
+        <section aria-labelledby="members-heading" className="mt-12">
+          <h2
+            id="members-heading"
+            className="sr-only"
+          >
+            Team members
+          </h2>
+          {/* The section heading is a screen-reader landmark only. A visible one
+              here duplicated "Meet the Team" forty pixels below it, which read as
+              a heading hierarchy mistake rather than as structure. */}
+          <TeamCarousel />
+        </section>
 
         <p className="mt-14 text-center text-sm text-ink-muted">
           AngkorCinemas is a Movie Platform demo built for coursework.

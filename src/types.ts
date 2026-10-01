@@ -29,6 +29,17 @@ export type Account = {
   createdAt: string
   isAdmin: boolean
   watchlist: Media[]
+  /**
+   * How the account is greeted. Optional because every account predates it: the
+   * navbar falls back to the email's first letter, so an account that has never
+   * opened its profile renders exactly as it did before.
+   */
+  displayName?: string
+  /**
+   * A data-URL avatar, uploaded from the profile modal and downscaled on the way
+   * in. Optional for the same reason; absent means "draw the initial".
+   */
+  avatar?: string
 }
 
 export type AuthMode = 'login' | 'register'

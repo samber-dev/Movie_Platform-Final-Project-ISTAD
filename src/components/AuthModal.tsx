@@ -10,6 +10,7 @@ import {
   registerUser,
 } from '../lib/authStore'
 import { useModalDismiss } from '../lib/useModalDismiss'
+import { recordActivity } from '../lib/activityStore'
 import type { Account, AuthMode } from '../types'
 
 const TABS: { key: AuthMode; label: string }[] = [
@@ -65,6 +66,12 @@ export function AuthModal({ mode, users, hint, onAuthenticated, onClose }: Props
       setError(result.error)
       return
     }
+    // Logged only on success: a wrong password is not activity worth ranking.
+    recordActivity(
+      tab === 'register' ? 'account.created' : 'auth.signed-in',
+      tab === 'register' ? 'Joined AngkorCinemas' : 'Signed in',
+      result.account.email,
+    )
     onAuthenticated(result.account, result.users)
   }
 

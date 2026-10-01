@@ -16,9 +16,15 @@ const openModals: symbol[] = []
 /**
  * Closes the overlay on Escape and locks body scroll while it is open.
  * Shared by every modal so the behaviour stays consistent.
+ *
+ * `enabled` is for the one overlay that is only sometimes open — the mobile
+ * navigation drawer. Passing `false` makes this a no-op, so the caller does not
+ * have to reach for a second hand-rolled copy of the same two effects, and the
+ * scroll lock is guaranteed to follow the menu's actual state.
  */
-export function useModalDismiss(onClose: () => void): void {
+export function useModalDismiss(onClose: () => void, enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     const token = Symbol('modal')
     openModals.push(token)
 
@@ -40,5 +46,5 @@ export function useModalDismiss(onClose: () => void): void {
       // layer that saw "hidden" must hand back "hidden" to the layer under it.
       document.body.style.overflow = previousOverflow
     }
-  }, [onClose])
+  }, [onClose, enabled])
 }

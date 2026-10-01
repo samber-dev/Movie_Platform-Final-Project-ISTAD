@@ -15,6 +15,7 @@ import {
 import type { LocalReview } from '../../lib/reviewStore'
 import { useAsyncSection } from '../../lib/useAsyncSection'
 import type { Media } from '../../types'
+import { recordMediaActivity, useActorEmail } from '../../lib/activityStore'
 import { SectionMessage, SectionShell } from './SectionShell'
 import { scoreColor } from './sectionUtils'
 
@@ -164,6 +165,7 @@ function ReviewForm({
   item: Media
   onSubmit: (review: LocalReview) => void
 }) {
+  const actor = useActorEmail()
   const [name, setName] = useState('')
   const [rating, setRating] = useState(0)
   const [body, setBody] = useState('')
@@ -188,6 +190,7 @@ function ReviewForm({
       rating,
       body: trimmedBody.slice(0, MAX_REVIEW_LENGTH),
     })
+    recordMediaActivity('review.posted', 'Reviewed', item, actor)
     onSubmit(review)
     setBody('')
     setRating(0)
@@ -285,6 +288,7 @@ export function ReviewsSection({ item }: { item: Media }) {
     [item.type, item.id, item.isCustom],
   )
   const [mine, setMine] = useState<LocalReview[]>(() => loadLocalReviews(item))
+  const actor = useActorEmail()
 
   const remote = state.data ?? []
   const mineAverage = averageLocalRating(mine)
@@ -329,6 +333,7 @@ export function ReviewsSection({ item }: { item: Media }) {
               key={review.id}
               review={review}
               onDelete={() => {
+                recordMediaActivity('review.deleted', 'Deleted their review of', item, actor)
                 removeLocalReview(item, review.id)
                 setMine(loadLocalReviews(item))
               }}

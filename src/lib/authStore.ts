@@ -135,6 +135,96 @@ function isAccount(value: unknown): value is Account {
   )
 }
 
+/**
+ * Cap on an avatar's stored size.
+ *
+ * An uploaded photo straight off a phone camera is 3-5 MB, and localStorage caps
+ * the whole origin at roughly 5 MB alongside accounts, watchlists, reviews and the
+ * activity log. Storing one raw would blow the quota and take every other feature
+ * down with it, so images are downscaled to 256px square before they are ever
+ * written. That is well above the 36px the navbar renders, and leaves room for a
+ * future profile page without another migration.
+ */
+export const MAX_AVATAR_BYTES = 48 * 1024
+
+/** Downscaled square edge, in CSS pixels. */
+const AVATAR_EDGE = 256
+
+export const MIN_DISPLAY_NAME_LENGTH = 2
+export const MAX_DISPLAY_NAME_LENGTH = 40
+
+/**
+ * Trims a display name and rejects the values that would render as an empty
+ * greeting. Returns null when the name is unusable, so callers can fall back to
+ * the email rather than rendering a blank avatar.
+ */
+export function normalizeDisplayName(value: string | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim().replace(/\s+/g, ' ')
+  if (trimmed.length < MIN_DISPLAY_NAME_LENGTH) return null
+  return trimmed.slice(0, MAX_DISPLAY_NAME_LENGTH)
+}
+
+/**
+ * Reads an uploaded image file into a square data URL, downscaled and re-encoded
+ * as JPEG.
+ *
+ * This runs entirely in the browser — `FileReader` plus a canvas — so the photo
+ * never leaves the device. Downscaling is what makes the upload safe to persist:
+ * see `MAX_AVATAR_BYTES`.
+ *
+ * Returns null when the file is not a decodable image or comes out over the cap.
+ * A GIF or an animated WebP is re-encoded to a still JPEG, which is deliberate:
+ * the avatar is a 36px circle and a still frame is both smaller and truer to what
+ * the navbar shows anyway.
+ */
+export async function fileToAvatarDataUrl(file: File): Promise<string | null> {
+  if (!file.type.startsWith('image/')) return null
+
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (bitmap === null) return null
+
+  try {
+    const edge = Math.min(AVATAR_EDGE, Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = edge
+    canvas.height = edge
+    const context = canvas.getContext('2d')
+    if (context === null) return null
+
+    // Centre-crop to a square before scaling, so an avatar is never stretched.
+    const side = Math.min(bitmap.width, bitmap.height)
+    context.drawImage(
+      bitmap,
+      (bitmap.width - side) / 2,
+      (bitmap.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      edge,
+      edge,
+    )
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+    // The length is a proxy for bytes: a base64 data URL is ~4/3 the size of the
+    // JPEG it wraps, and comparing strings avoids decoding a megabyte to learn
+    // its length.
+    if (dataUrl.length > MAX_AVATAR_BYTES * 1.4) return null
+    return dataUrl
+  } finally {
+    bitmap.close()
+  }
+}
+
+/** Only JPEG data URLs this module produced are accepted back out of storage. */
+function normalizeAvatar(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  if (!value.startsWith('data:image/jpeg;base64,')) return undefined
+  if (value.length > MAX_AVATAR_BYTES * 1.4) return undefined
+  return value
+}
+
 function adminAccount(): Account {
   return {
     id: ADMIN_ID,
@@ -160,14 +250,22 @@ export function loadUsers(): Account[] {
   // leave a stale duplicate behind (normalizeUsers re-seeds the current one).
   const users = stored
     .filter((user) => !LEGACY_ADMIN_EMAILS.includes(normalizeEmail(user.email)))
-    .map((user) => ({
-      ...user,
-      email: normalizeEmail(user.email),
-      isAdmin: user.email === ADMIN_EMAIL,
-      watchlist: Array.isArray(user.watchlist)
-        ? user.watchlist.filter(isMedia).map(normalizeMedia)
-        : [],
-    }))
+    .map((user) => {
+      const displayName = normalizeDisplayName(user.displayName)
+      const avatar = normalizeAvatar(user.avatar)
+      return {
+        ...user,
+        email: normalizeEmail(user.email),
+        isAdmin: user.email === ADMIN_EMAIL,
+        watchlist: Array.isArray(user.watchlist)
+          ? user.watchlist.filter(isMedia).map(normalizeMedia)
+          : [],
+        // Spread onto undefined rather than kept as null: the optional fields are
+        // omitted entirely when unset, which is how they were written.
+        ...(displayName === null ? {} : { displayName }),
+        ...(avatar === undefined ? {} : { avatar }),
+      }
+    })
   if (!users.some((user) => user.email === ADMIN_EMAIL)) {
     users.unshift(adminAccount())
   }
@@ -372,4 +470,102 @@ export function setPersistedAuth(
 
 export function usePersistedAuth(): PersistedAuth {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/* ==========================================================================
+   Profile updates
+
+   A separate write path from `setPersistedAuth`, because an email change has to
+   move the session key too: the session is stored as an email string, so
+   renaming an account without rewriting `sessionEmail` would sign the user out
+   the moment they saved. Doing both in one commit means they never see the
+   intermediate state.
+
+   Watchlists are keyed by account id elsewhere, so renaming an account leaves
+   every saved title exactly where it was — which is the behaviour you want from
+   a profile edit, and the reason the update touches only the three fields.
+   ========================================================================== */
+
+export type ProfilePatch = {
+  displayName?: string
+  email?: string
+  /** An empty string removes the avatar; omitted leaves it alone. */
+  avatar?: string
+}
+
+export type ProfileResult =
+  | { ok: true; account: Account; users: Account[] }
+  | { ok: false; error: string }
+
+/**
+ * Applies a profile edit to `account`, validating the new email against the
+ * other accounts. The caller has already confirmed intent with the dialog; this
+ * re-checks rather than trusting it, because the session key depends on it.
+ */
+export function updateProfile(
+  users: Account[],
+  email: string,
+  patch: ProfilePatch,
+): ProfileResult {
+  const account = users.find((user) => user.email === email)
+  if (account === undefined) {
+    return { ok: false, error: 'That account no longer exists.' }
+  }
+
+  const next: Account = { ...account }
+
+  if (patch.displayName !== undefined) {
+    const displayName = normalizeDisplayName(patch.displayName)
+    if (displayName === null) {
+      return {
+        ok: false,
+        error: `Display name must be at least ${MIN_DISPLAY_NAME_LENGTH} characters.`,
+      }
+    }
+    next.displayName = displayName
+  }
+
+  if (patch.avatar !== undefined) {
+    if (patch.avatar === '') delete next.avatar
+    else next.avatar = normalizeAvatar(patch.avatar)
+  }
+
+  if (patch.email !== undefined) {
+    const address = normalizeEmail(patch.email)
+    if (!isValidEmail(address)) {
+      return { ok: false, error: 'Enter a valid email address.' }
+    }
+    if (address === ADMIN_EMAIL && address !== account.email) {
+      return { ok: false, error: 'That address is reserved for the platform admin.' }
+    }
+    if (address !== account.email && users.some((user) => user.email === address)) {
+      return { ok: false, error: 'Another account already uses that address.' }
+    }
+    next.email = address
+  }
+
+  return {
+    ok: true,
+    account: next,
+    users: users.map((user) => (user.email === email ? next : user)),
+  }
+}
+
+/**
+ * Commits a profile edit. When the email changes the session moves to the new
+ * address in the same write, so the user stays signed in.
+ */
+export function saveProfile(email: string, patch: ProfilePatch): ProfileResult {
+  const result = updateProfile(getSnapshot().users, email, patch)
+  if (!result.ok) return result
+
+  setPersistedAuth((current) => ({
+    ...current,
+    users: current.users.map((user) =>
+      user.email === email ? result.account : user,
+    ),
+    sessionEmail:
+      current.sessionEmail === email ? result.account.email : current.sessionEmail,
+  }))
+  return result
 }

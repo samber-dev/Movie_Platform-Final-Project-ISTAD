@@ -54,13 +54,13 @@ export function shortMonth(date: Date): string {
   return SHORT_MONTHS[date.getMonth()]
 }
 
-type Dated = { media: Media; date: Date }
+export type DatedEntry = { media: Media; date: Date }
 
 export type MonthGroup = {
   /** `YYYY-MM` for dated months, `undated` for the trailing TBA bucket. */
   key: string
   label: string
-  entries: Dated[]
+  entries: DatedEntry[]
 }
 
 /**
@@ -106,4 +106,135 @@ export function groupByMonth(items: Media[]): MonthGroup[] {
     })
   }
   return groups
+}
+
+/* ==========================================================================
+   Month grid
+
+   The month-groups above are the data. What follows lays one group out the way a
+   wall calendar does: a fixed 7-column grid of day cells, weeks running Sun–Sat,
+   with the releases for a given date nested inside that date's own cell.
+   ========================================================================== */
+
+export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+/**
+ * One day cell. The leading and trailing days of the grid belong to the
+ * neighbouring months, so they carry no releases and are drawn inert.
+ */
+export type DayCell = {
+  /** Stable key for React: `YYYY-MM-DD`. */
+  key: string
+  date: Date
+  /** False for the padding days borrowed from the month before or after. */
+  inMonth: boolean
+  isToday: boolean
+  /** Releases landing on exactly this day. */
+  entries: DatedEntry[]
+}
+
+/** One row of the grid: always seven cells, always Sun through Sat. */
+export type WeekRow = DayCell[]
+
+export type MonthGrid = {
+  key: string
+  label: string
+  /** Zero-based month, kept so callers can render a month name without re-parsing. */
+  month: number
+  year: number
+  weeks: WeekRow[]
+  /** Releases that fall inside this month, for the month's "N titles" count. */
+  entryCount: number
+}
+
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+/**
+ * Lays one month's releases out as a 7-column grid of weeks.
+ *
+ * The grid always starts on the Sunday on or before the 1st and always ends on
+ * the Saturday on or after the last day, so rows are full and every month has the
+ * same shape. `Date.getDay()` returns 0 for Sunday, which is already the column
+ * index, so no weekday arithmetic is needed to find the first cell.
+ *
+ * A month therefore has 4, 5 or 6 rows depending on where its 1st falls — the
+ * grid never pads to six, because a wholly empty final week is visual noise.
+ */
+export function buildMonthGrid(
+  group: MonthGroup,
+  today: Date = new Date(),
+): MonthGrid | null {
+  if (group.key === 'undated') return null
+
+  const [yearText, monthText] = group.key.split('-')
+  const year = Number(yearText)
+  const month = Number(monthText) - 1
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
+
+  // Grouped by day up front: a cell is filled by one lookup rather than a scan
+  // over every release in the month.
+  const byDay = new Map<string, DatedEntry[]>()
+  for (const entry of group.entries) {
+    const key = dayKey(entry.date)
+    const existing = byDay.get(key)
+    if (existing) existing.push(entry)
+    else byDay.set(key, [entry])
+  }
+
+  const firstOfMonth = new Date(year, month, 1)
+  const lastOfMonth = new Date(year, month + 1, 0)
+  const gridStart = new Date(year, month, 1 - firstOfMonth.getDay())
+  const gridEnd = new Date(year, month, lastOfMonth.getDate() + (6 - lastOfMonth.getDay()))
+
+  const weeks: WeekRow[] = []
+  const cursor = new Date(gridStart)
+  while (cursor.getTime() <= gridEnd.getTime()) {
+    const week: WeekRow = []
+    for (let column = 0; column < 7; column += 1) {
+      const key = dayKey(cursor)
+      week.push({
+        key,
+        date: new Date(cursor),
+        inMonth: cursor.getMonth() === month && cursor.getFullYear() === year,
+        isToday: sameDay(cursor, today),
+        entries: cursor.getMonth() === month ? (byDay.get(key) ?? []) : [],
+      })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    weeks.push(week)
+  }
+
+  return {
+    key: group.key,
+    label: group.label,
+    month,
+    year,
+    weeks,
+    entryCount: group.entries.length,
+  }
+}
+
+/** Builds every month's grid, skipping the undated bucket. */
+export function buildMonthGrids(
+  groups: MonthGroup[],
+  today: Date = new Date(),
+): MonthGrid[] {
+  const grids: MonthGrid[] = []
+  for (const group of groups) {
+    const grid = buildMonthGrid(group, today)
+    if (grid !== null) grids.push(grid)
+  }
+  return grids
 }

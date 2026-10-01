@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { AdminDashboard } from './AdminDashboard'
 import { AuthModal } from './AuthModal'
+import { ProfileSettings } from './ProfileSettings'
 import { ComingSoonCalendar } from './ComingSoon'
 import { MovieDetail } from './MovieDetail'
 import { PersonDetail } from './PersonDetail'
@@ -10,6 +12,7 @@ import type { PersonRef } from './PersonDetail'
 import { PersonQuickLook } from './PersonQuickLook'
 import { TeamPage } from './TeamPage'
 import { setPersistedAuth, usePersistedAuth } from '../lib/authStore'
+import { recordActivity, recordMediaActivity } from '../lib/activityStore'
 import {
   discoverUrl,
   feedUrl,
@@ -32,16 +35,16 @@ import { GENRE_CHIPS, hasGenre } from '../lib/genres'
 import type { GenreChip } from '../lib/genres'
 import type { Account, AuthMode, Media } from '../types'
 
-type Category = 'all' | 'movie' | 'tv' | 'soon' | 'watchlist' | 'custom'
+type Category = 'all' | 'movie' | 'tv' | 'soon' | 'watchlist'
 /**
- * Categories the TMDB feed can serve. The watchlist and the custom catalogue
- * both render straight from local state, so neither needs a request.
+ * Categories the TMDB feed can serve. The watchlist renders straight from local
+ * state, so it needs no request.
  */
-type FeedCategory = Exclude<Category, 'watchlist' | 'custom'>
+type FeedCategory = Exclude<Category, 'watchlist'>
 
 /** Tabs fed by local state rather than a TMDB request. */
 function isLocalCategory(category: Category): boolean {
-  return category === 'watchlist' || category === 'custom'
+  return category === 'watchlist'
 }
 
 const SEARCH_DEBOUNCE_MS = 350
@@ -281,6 +284,7 @@ function WatchlistButton({
 }
 
 const SEARCH_LISTBOX_ID = 'navbar-search-suggestions'
+const NAV_MENU_ID = 'navbar-menu'
 
 /**
  * Navbar search with a live typeahead: matches stream in while the visitor
@@ -354,7 +358,11 @@ function SearchBox({
   }
 
   return (
-    <div ref={wrapRef} className="group relative w-36 min-w-0 sm:w-52 md:w-64 md:focus-within:w-72">
+    // Fills whatever the navbar's flex row leaves over: the field is the one
+    // elastic element in the bar, so signing in as an admin — which adds the
+    // admin and sign-out controls — narrows the search instead of pushing the
+    // row into a wrap or an overlap.
+    <div ref={wrapRef} className="group relative w-full min-w-0">
       <label className="relative block">
         <span className="sr-only">Search movies and TV shows</span>
         <input
@@ -517,6 +525,247 @@ function SearchBox({
   )
 }
 
+/* ==========================================================================
+   Navbar icons
+   Kept as components rather than inline markup so the desktop bar, the mobile
+   drawer and the account block below can all reuse one glyph at one size.
+   ========================================================================== */
+
+const ICON_CLASS = 'h-5 w-5'
+const ICON_PROPS = {
+  viewBox: '0 0 24 24',
+  className: ICON_CLASS,
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const
+
+function PeopleIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19" />
+      <circle cx="10" cy="8" r="3.2" />
+      <path d="M20 19v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.2a3.2 3.2 0 0 1 0 5.6" />
+    </svg>
+  )
+}
+
+function ShieldIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M12 3 5 6v5.5c0 4 2.9 7.6 7 8.5 4.1-.9 7-4.5 7-8.5V6l-7-3Z" />
+      <path d="m9.5 12 1.8 1.8 3.4-3.6" />
+    </svg>
+  )
+}
+
+/**
+ * The greeting shown for an account: the display name once one is set, otherwise
+ * the email's local part. Never the whole address in the navbar — it does not
+ * fit next to a search — and never a blank, which would render an avatar with no
+ * letter in it.
+ */
+export function accountLabel(account: Account): string {
+  return account.displayName ?? account.email.split('@')[0]
+}
+
+/**
+ * An account's avatar: the uploaded picture when there is one, otherwise the
+ * initial on the accent fill.
+ *
+ * The image is decorative — the accessible name belongs to whatever button wraps
+ * it — so it is `alt=""` and the letter is hidden from assistive tech. Sizes are
+ * fixed rather than fluid because the same component renders in the 36px navbar
+ * circle and the 32px drawer one, and a fluid avatar would blur the upload.
+ */
+export function AccountAvatar({
+  account,
+  size = 'md',
+}: {
+  account: Account
+  size?: 'sm' | 'md'
+}) {
+  const edge = size === 'sm' ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
+
+  if (account.avatar) {
+    return (
+      <img
+        src={account.avatar}
+        alt=""
+        className={`${edge} shrink-0 rounded-full object-cover ring-1 ring-accent/40`}
+      />
+    )
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex ${edge} shrink-0 items-center justify-center rounded-full bg-accent/15 font-extrabold uppercase text-accent ring-1 ring-accent/40`}
+    >
+      {accountLabel(account).charAt(0)}
+    </span>
+  )
+}
+
+function UserIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.4" />
+      <path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" />
+    </svg>
+  )
+}
+
+function SignOutIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M14 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2" />
+      <path d="M10 12h10M17 9l3 3-3 3" />
+    </svg>
+  )
+}
+
+function MenuIcon({ open }: { open: boolean }) {
+  return (
+    <svg {...ICON_PROPS}>
+      {open ? (
+        <path d="M6 6l12 12M18 6 6 18" />
+      ) : (
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      )}
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={ICON_CLASS}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </svg>
+  )
+}
+
+type NavLinkProps = {
+  label: string
+  active: boolean
+  onClick: () => void
+  /** Count pill — watchlist and custom carry one, the rest do not. */
+  badge?: number
+  icon?: ReactNode
+  /** Full-width row for the mobile drawer instead of an inline pill. */
+  block?: boolean
+}
+
+/**
+ * One destination, used by both the desktop row and the mobile drawer so the
+ * two can never disagree about which section is current.
+ */
+function NavLink({
+  label,
+  active,
+  onClick,
+  badge = 0,
+  icon,
+  block = false,
+}: NavLinkProps) {
+  const base =
+    'relative flex items-center rounded-full font-semibold transition focus-visible:ring-2 focus-visible:ring-accent'
+  const tone = active
+    ? 'bg-surface-2 text-ink'
+    : 'text-ink-soft hover:bg-surface-2/70 hover:text-ink'
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={`${base} ${
+        block
+          ? 'w-full justify-between gap-3 px-4 py-3 text-left text-base'
+          : // 13px at `lg`, back up to 14px at `xl`: the link row shares the
+            // bar with the search and, for an admin, two extra buttons, and
+            // that is the only place the bar gets genuinely tight.
+            'gap-1.5 px-2 py-2 text-[0.8125rem] xl:px-3 xl:text-sm'
+      } ${tone}`}
+    >
+      <span className="flex min-w-0 items-center gap-2.5">
+        {icon && (
+          <span
+            aria-hidden="true"
+            className={active ? 'text-accent' : 'text-ink-muted'}
+          >
+            {icon}
+          </span>
+        )}
+        <span className="truncate">{label}</span>
+      </span>
+
+      {badge > 0 && (
+        <span
+          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+            active ? 'bg-accent text-page' : 'bg-surface-3 text-ink-soft'
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+
+      {/* Active marker, anchored to the pill itself so it tracks the selection
+          with no measuring in JS. Suppressed in the drawer, where the filled
+          background already says it. */}
+      {active && !block && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent shadow-neon"
+        />
+      )}
+    </button>
+  )
+}
+
+/**
+ * The top bar, in three fixed zones so the row can never wrap into a mess:
+ *
+ *   left   brand lockup
+ *   middle navigation links (inline from `lg`, a drawer below it)
+ *   right  search, theme, then the account controls
+ *
+ * The search is the only elastic element — it is wrapped in `flex-1` and takes
+ * whatever width the other zones leave, so an admin's two extra buttons narrow
+ * the field instead of overflowing the bar. The account controls drop their
+ * labels at `lg` and the email only ever exists as the avatar's accessible
+ * name, because six links plus a search plus four account controls do not fit
+ * on one 1280px row in full.
+ */
 function Navbar({
   query,
   onQueryChange,
@@ -524,11 +773,11 @@ function Navbar({
   active,
   onSelectCategory,
   watchlistCount,
-  customCount,
   user,
   onSignIn,
   onSignOut,
   onOpenAdmin,
+  onOpenProfile,
   onOpenTeam,
   theme,
   onToggleTheme,
@@ -539,31 +788,78 @@ function Navbar({
   active: Category
   onSelectCategory: (category: Category) => void
   watchlistCount: number
-  customCount: number
   user: Account | null
   onSignIn: () => void
   onSignOut: () => void
   onOpenAdmin: () => void
+  onOpenProfile: () => void
   onOpenTeam: () => void
   theme: Theme
   onToggleTheme: () => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const navRef = useRef<HTMLElement>(null)
+
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
+
+  // Escape and the scroll lock come from the shared overlay hook, gated on the
+  // drawer actually being open.
+  useModalDismiss(closeMenu, menuOpen)
+
+  // A tap anywhere outside the bar dismisses the drawer, the same way a click
+  // outside a modal dismisses it.
+  useEffect(() => {
+    if (!menuOpen) return
+    function onPointerDown(event: PointerEvent) {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        closeMenu()
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [menuOpen, closeMenu])
+
+  /**
+   * Five destinations, and the Custom tab is deliberately not one of them:
+   * admin-authored titles are merged into the Movies and All feeds below, so
+   * they are browsable without a tab of their own.
+   */
   const links: { key: Category; label: string }[] = [
     { key: 'movie', label: 'Movies' },
     { key: 'tv', label: 'TV Shows' },
     { key: 'soon', label: 'Coming Soon' },
     { key: 'watchlist', label: 'Watchlist' },
-    { key: 'custom', label: 'Custom' },
   ]
 
-  /** Both badges hang off the last character of their label. */
+  /** The badge hangs off its own label rather than floating beside it. */
   const badgeFor = (key: Category): number =>
-    key === 'watchlist' ? watchlistCount : customCount
+    key === 'watchlist' ? watchlistCount : 0
+
+  /** Selecting a destination from the drawer also dismisses it. */
+  function go(category: Category) {
+    onSelectCategory(category)
+    closeMenu()
+  }
+
+  function openTeam() {
+    onOpenTeam()
+    closeMenu()
+  }
 
   return (
-    <nav className="fixed inset-x-0 top-0 z-40 bg-page/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4">
-        <div className="flex min-w-0 items-center gap-2">
+    <nav
+      ref={navRef}
+      aria-label="Main"
+      className="fixed inset-x-0 top-0 z-40 border-b border-line bg-page/85 backdrop-blur-xl"
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3">
+        {/* ---- Left: brand ------------------------------------------------ */}
+        <button
+          type="button"
+          onClick={() => go('all')}
+          aria-label="AngkorCinemas — browse everything"
+          className="flex shrink-0 items-center gap-2.5 rounded-xl pr-1 text-left"
+        >
           {/* `MovieLogo.png` is a 1444x1089 cut-out photo of the two founders,
               not a wordmark — at `h-10` it rendered as a 53x40 thumbnail nobody
               could read, and cost 794 KB to load. `team-photo.png` is the same
@@ -572,63 +868,48 @@ function Navbar({
               of the crop, and a circular mask clips the top off both of them. */}
           <img
             src="/team-photo.png"
-            alt="AngkorCinemas"
+            alt=""
             width={160}
             height={160}
-            className="h-10 w-10 shrink-0 rounded-2xl object-cover"
+            className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-line"
           />
-        </div>
+          <span className="hidden min-w-0 leading-tight sm:block">
+            <span className="block truncate text-[15px] font-extrabold tracking-tight text-ink">
+              Angkor<span className="neon-text">Cinemas</span>
+            </span>
+            <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted md:block">
+              Movie Platform
+            </span>
+          </span>
+        </button>
 
-        <div className="hidden items-center gap-6 text-sm font-semibold md:flex">
+        {/* ---- Middle: destinations, inline once there is room for them ---- */}
+        <ul className="hidden items-center lg:flex">
           {links.map((link) => (
-            <button
-              key={link.key}
-              type="button"
-              onClick={() => onSelectCategory(link.key)}
-              className={`relative hover:text-ink ${
-                active === link.key ? 'text-ink' : 'text-ink-soft'
-              }`}
-            >
-              {link.label}
-              {badgeFor(link.key) > 0 && (
-                <span className="absolute -right-4 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-page">
-                  {badgeFor(link.key)}
-                </span>
-              )}
-            </button>
+            <li key={link.key}>
+              <NavLink
+                label={link.label}
+                badge={badgeFor(link.key)}
+                active={active === link.key}
+                onClick={() => onSelectCategory(link.key)}
+              />
+            </li>
           ))}
-          <button
-            type="button"
-            onClick={onOpenTeam}
-            className="relative rounded-full px-3 py-1.5 text-ink-soft transition hover:bg-surface-2 hover:text-ink"
-          >
-            About Us
-          </button>
-        </div>
+          {/* No icon here, unlike the drawer below: four text links and a fifth
+              text link read as one set, and 26px of glyph is 26px the search
+              does not have at `lg`. */}
+          <li>
+            <NavLink label="About Us" active={false} onClick={onOpenTeam} />
+          </li>
+        </ul>
 
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onOpenTeam}
-            className="icon-btn shrink-0 md:hidden"
-            aria-label="About Us — meet the team"
-            title="About Us"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19" />
-              <circle cx="10" cy="8" r="3.2" />
-              <path d="M20 19v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.2a3.2 3.2 0 0 1 0 5.6" />
-            </svg>
-          </button>
+        {/* ---- Right: search, theme, then the account controls -------------
+            `flex-1` with `min-w-0`: this cluster absorbs every pixel the
+            brand and the link row do not claim, and the search inside it is
+            the one thing allowed to shrink. */}
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <SearchBox query={query} onQueryChange={onQueryChange} onPick={onSearchPick} />
+
           <button
             type="button"
             onClick={onToggleTheme}
@@ -637,77 +918,178 @@ function Navbar({
             aria-pressed={theme === 'light'}
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'dark' ? (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-              </svg>
-            )}
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
-          <SearchBox query={query} onQueryChange={onQueryChange} onPick={onSearchPick} />
 
           {user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2">
               {user.isAdmin && (
                 <button
                   type="button"
                   onClick={onOpenAdmin}
-                  className="rounded-lg bg-surface-2 px-3 py-2 text-sm font-bold text-ink ring-1 ring-line transition hover:bg-accent hover:text-page"
+                  aria-label="Open the admin panel"
+                  title="Admin Panel"
+                  className="hidden items-center gap-2 rounded-full bg-surface-2 px-2.5 py-2 text-sm font-bold text-ink ring-1 ring-line transition hover:bg-accent hover:text-page lg:inline-flex"
                 >
-                  Admin Panel
+                  <ShieldIcon />
+                  <span className="hidden xl:inline">Admin Panel</span>
                 </button>
               )}
-              <span
-                title={user.email}
-                className="flex max-w-[9rem] items-center gap-2 rounded-full bg-page/40 py-1 pl-1 pr-3 ring-1 ring-line"
+
+              {/* The avatar carries the account, so it is the accessible name and
+                  the tooltip rather than inline text — and it is a button, because
+                  clicking it is how a profile is edited. */}
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                aria-label={`Profile settings for ${accountLabel(user)}`}
+                title={`${accountLabel(user)} — profile settings`}
+                className="shrink-0 rounded-full transition hover:ring-2 hover:ring-accent focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-extrabold uppercase text-page">
-                  {user.email.charAt(0)}
-                </span>
-                <span className="hidden truncate text-xs font-semibold text-ink-soft sm:block">
-                  {user.email}
-                </span>
-              </span>
+                <AccountAvatar account={user} />
+              </button>
+
               <button
                 type="button"
                 onClick={onSignOut}
-                className="rounded-lg bg-surface-2 px-3 py-2 text-sm font-bold text-ink transition hover:bg-surface-3"
+                aria-label="Sign out"
+                title="Sign Out"
+                className="hidden items-center gap-2 rounded-full bg-surface-2 px-2.5 py-2 text-sm font-bold text-ink-soft ring-1 ring-line transition hover:bg-surface-3 hover:text-ink lg:inline-flex"
               >
-                Sign Out
+                <SignOutIcon />
+                <span className="hidden xl:inline">Sign Out</span>
               </button>
             </div>
           ) : (
             <button
               type="button"
               onClick={onSignIn}
-              className="btn-neon !px-4 !py-2"
+              className="btn-neon shrink-0 !px-4 !py-2"
             >
               Sign In
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-controls={NAV_MENU_ID}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            className="icon-btn shrink-0 lg:hidden"
+          >
+            <MenuIcon open={menuOpen} />
+          </button>
         </div>
       </div>
+
+      {/* ---- Mobile drawer: the same destinations, stacked --------------- */}
+      {menuOpen && (
+        <div
+          id={NAV_MENU_ID}
+          className="absolute inset-x-0 top-full max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-line bg-page/95 shadow-neon-soft backdrop-blur-xl lg:hidden"
+        >
+          <div className="mx-auto max-w-7xl space-y-5 p-4">
+            <div>
+              <p className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">
+                Browse
+              </p>
+              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                {links.map((link) => (
+                  <li key={link.key}>
+                    <NavLink
+                      block
+                      label={link.label}
+                      badge={badgeFor(link.key)}
+                      active={active === link.key}
+                      onClick={() => go(link.key)}
+                    />
+                  </li>
+                ))}
+                <li>
+                  <NavLink
+                    block
+                    label="About Us"
+                    icon={<PeopleIcon />}
+                    active={false}
+                    onClick={openTeam}
+                  />
+                </li>
+              </ul>
+            </div>
+
+            {user && (
+              <div>
+                <p className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">
+                  Account
+                </p>
+                <div className="mt-2 rounded-2xl bg-surface/70 p-3 ring-1 ring-line">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenu()
+                        onOpenProfile()
+                      }}
+                      aria-label={`Profile settings for ${accountLabel(user)}`}
+                      className="shrink-0 rounded-full transition hover:ring-2 hover:ring-accent focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <AccountAvatar account={user} size="sm" />
+                    </button>
+                    <span className="min-w-0">
+                      {user.displayName && (
+                        <span className="block truncate text-sm font-bold text-ink">
+                          {user.displayName}
+                        </span>
+                      )}
+                      <span className="block truncate text-sm text-ink-muted">
+                        {user.email}
+                      </span>
+                    </span>
+                  </div>
+                  {/* Admin and sign-out live here rather than in the bar, so a
+                      signed-in admin's extra controls cannot crowd the search
+                      field on a phone. */}
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenu()
+                        onOpenProfile()
+                      }}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-bold text-ink ring-1 ring-line transition hover:bg-surface-3"
+                    >
+                      <UserIcon />
+                      Settings
+                    </button>
+                    {user.isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenu()
+                          onOpenAdmin()
+                        }}
+                        className="btn-neon justify-start !px-4 !py-2.5"
+                      >
+                        <ShieldIcon />
+                        Admin Panel
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={onSignOut}
+                      className="flex items-center gap-2 rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-bold text-ink ring-1 ring-line transition hover:bg-surface-3"
+                    >
+                      <SignOutIcon />
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
@@ -1112,8 +1494,6 @@ function GenreChips({
 /**
  * The media-type tab strip. "Coming Soon" is deliberately absent: it is not a
  * type filter but its own movies-only feed, and it already has a navbar entry.
- * So is "Custom", which is neither a type nor a TMDB feed — it is the admin's
- * own list and also has a navbar entry.
  */
 const tabs: { key: Category; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -1216,13 +1596,15 @@ export function MoviePlatformApp() {
   const { users, sessionEmail, guestWatchlist } = usePersistedAuth()
   /**
    * Admin-authored titles, shaped into the same `Media` the TMDB feed produces
-   * so they render through the identical grid and card components. See
-   * `customMovieStore`.
+   * so they render through the identical grid and card components. They are
+   * merged into the Movies and All feeds rather than given a navbar tab; see the
+   * `feed` memo. See `customMovieStore`.
    */
   const customMovies = useCustomMovies()
   const [authMode, setAuthMode] = useState<AuthMode | null>(null)
   const [authHint, setAuthHint] = useState<string | undefined>(undefined)
   const [adminOpen, setAdminOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [teamOpen, setTeamOpen] = useState(false)
   const [trailerItem, setTrailerItem] = useState<Media | null>(null)
   const [person, setPerson] = useState<PersonRef | null>(null)
@@ -1237,9 +1619,8 @@ export function MoviePlatformApp() {
   }, [query])
 
   useEffect(() => {
-    // The watchlist and the custom catalogue render straight from state, so
-    // neither needs a request.
-    if (filter === 'watchlist' || filter === 'custom') return
+    // The watchlist renders straight from state, so it needs no request.
+    if (filter === 'watchlist') return
 
     const category: FeedCategory = filter
     const searchTerm = debouncedQuery.trim()
@@ -1285,9 +1666,8 @@ export function MoviePlatformApp() {
   }, [filter, genre, debouncedQuery])
 
   const isWatchlistView = filter === 'watchlist'
-  const isCustomView = filter === 'custom'
   /** Tabs fed by local state: no request, no loading spinner, no Load more. */
-  const isLocalView = isWatchlistView || isCustomView
+  const isLocalView = isWatchlistView
   const hasMore = !isLocalView && page < totalPages
 
   /** Appends the next page in place; the first page comes from the effect above. */
@@ -1363,6 +1743,7 @@ export function MoviePlatformApp() {
   }, [])
 
   const closeAdmin = useCallback(() => setAdminOpen(false), [])
+  const closeProfile = useCallback(() => setProfileOpen(false), [])
 
   const updateOwnWatchlist = useCallback(
     (update: (current: Media[]) => Media[]) => {
@@ -1435,12 +1816,22 @@ export function MoviePlatformApp() {
    */
   const toggleWatchlist = useCallback(
     (media: Media) => {
+      const wasSaved = isSaved(media)
+      // Logged here rather than in the four writers below, because this is the
+      // one place that knows both the direction and whether the actor was a guest.
+      recordMediaActivity(
+        wasSaved ? 'watchlist.removed' : 'watchlist.added',
+        wasSaved ? 'Removed' : 'Saved',
+        media,
+        currentUser === null ? null : currentUser.email,
+      )
+
       if (currentUser === null) {
-        if (isSaved(media)) removeFromGuestWatchlist(media)
+        if (wasSaved) removeFromGuestWatchlist(media)
         else addToGuestWatchlist(media)
         return
       }
-      if (isSaved(media)) removeFromWatchlist(media)
+      if (wasSaved) removeFromWatchlist(media)
       else addToWatchlist(media)
     },
     [
@@ -1454,6 +1845,9 @@ export function MoviePlatformApp() {
   )
 
   function handleAuthenticated(account: Account, nextUsers: Account[]) {
+    // The sign-in/register event is recorded by AuthModal, which knows which of the
+    // two actually happened.
+    //
     // Carry over anything saved before the account existed. The guest list is
     // unioned rather than swapped in: signing in to an account that already has
     // saves used to throw the guest list away, silently losing titles.
@@ -1473,6 +1867,9 @@ export function MoviePlatformApp() {
   }
 
   function handleSignOut() {
+    // Recorded before the session is cleared, since afterwards there is no
+    // account left to attribute it to.
+    recordActivity('auth.signed-out', 'Signed out', sessionEmail)
     setPersistedAuth((current) => ({ ...current, sessionEmail: null }))
   }
 
@@ -1487,6 +1884,7 @@ export function MoviePlatformApp() {
 
   function handleDeleteUser(email: string) {
     if (email === sessionEmail) return
+    recordActivity('admin.user-deleted', `Deleted the account ${email}`, sessionEmail)
     setPersistedAuth((current) => ({
       ...current,
       users: current.users.filter((user) => user.email !== email),
@@ -1518,11 +1916,30 @@ export function MoviePlatformApp() {
 
   const customMedia = useMemo(() => customMovies.map(customToMedia), [customMovies])
 
-  /** Everything the current view could show, before sort and year narrowing. */
-  const source = useMemo(
-    () => (isCustomView ? customMedia : isWatchlistView ? watchlist : items),
-    [isCustomView, customMedia, isWatchlistView, watchlist, items],
+  /**
+   * The TMDB feed with admin-authored titles folded into it, so a locally added
+   * movie is browsable exactly like a TMDB one instead of sitting behind a tab of
+   * its own. They are appended rather than interleaved: a custom title has no
+   * TMDB popularity, so it would otherwise sort to the bottom of a popularity
+   * sort and read as "not really part of the catalogue".
+   *
+   * `dedupe` still runs because a custom title's negative id cannot collide with
+   * a TMDB id — but the feed may already have been appended to by "Load more",
+   * and this is the one place the two lists are joined.
+   *
+   * The release calendar is excluded: Coming Soon is a TMDB release-date feed,
+   * and a hand-entered year would land a title in the wrong month.
+   */
+  const feed = useMemo(
+    () =>
+      filter === 'soon' || customMedia.length === 0
+        ? items
+        : dedupe([...items, ...customMedia]),
+    [filter, items, customMedia],
   )
+
+  /** Everything the current view could show, before sort and year narrowing. */
+  const source = isWatchlistView ? watchlist : feed
 
   const availableYears = useMemo(() => collectYears(source), [source])
 
@@ -1535,43 +1952,33 @@ export function MoviePlatformApp() {
     year !== null && availableYears.includes(year) ? year : null
 
   const shown = useMemo(() => {
-    const matching = isCustomView
-      ? // Every custom title is a movie, so only the genre chip and the search
-        // term narrow this list. `hasGenre` matches these by genre name, since
-        // they carry no TMDB genre ids.
-        source.filter((item) => {
+    const matching = isWatchlistView
+      ? source.filter((item) => !needle || item.title.toLowerCase().includes(needle))
+      : source.filter((item) => {
+          // "soon" is already a movies-only feed, so a type check would only
+          // ever be `item.type === 'movie'` and could never fail.
+          if (filter !== 'all' && filter !== 'soon' && item.type !== filter) {
+            return false
+          }
+          // `hasGenre` also matches a custom title by genre *name*, since an
+          // admin-authored title carries no TMDB genre ids.
           if (genre && !hasGenre(item, genre)) return false
           return !needle || item.title.toLowerCase().includes(needle)
         })
-      : isWatchlistView
-        ? source.filter(
-            (item) => !needle || item.title.toLowerCase().includes(needle),
-          )
-        : source.filter((item) => {
-            // "soon" is already a movies-only feed, so a type check would only
-            // ever be `item.type === 'movie'` and could never fail.
-            if (filter !== 'all' && filter !== 'soon' && item.type !== filter) {
-              return false
-            }
-            if (genre && !hasGenre(item, genre)) return false
-            return !needle || item.title.toLowerCase().includes(needle)
-          })
     return matching
       .filter((item) => activeYear === null || yearOf(item) === activeYear)
       .sort((a, b) => compareMedia(a, b, sort))
-  }, [source, isCustomView, isWatchlistView, filter, genre, needle, activeYear, sort])
+  }, [source, isWatchlistView, filter, genre, needle, activeYear, sort])
 
-  const baseHeading = isCustomView
-    ? 'Custom Catalogue'
-    : isWatchlistView
-      ? 'My Watchlist'
-      : filter === 'soon'
-        ? 'Coming Soon · Release Calendar'
-        : filter === 'movie'
-          ? 'Popular Movies'
-          : filter === 'tv'
-            ? 'Popular TV Shows'
-            : 'Popular Movies & TV Shows'
+  const baseHeading = isWatchlistView
+    ? 'My Watchlist'
+    : filter === 'soon'
+      ? 'Coming Soon · Release Calendar'
+      : filter === 'movie'
+        ? 'Popular Movies'
+        : filter === 'tv'
+          ? 'Popular TV Shows'
+          : 'Popular Movies & TV Shows'
 
   const heading = [
     baseHeading,
@@ -1579,29 +1986,35 @@ export function MoviePlatformApp() {
     isLocalView ? ` (${source.length})` : '',
   ].join('')
 
-  const sourceLabel = isCustomView
-    ? 'localStorage · soogood_kh_custom_movies_v1'
-    : isWatchlistView
-      ? currentUser
-        ? `saved to ${currentUser.email}`
-        : 'sign in to save titles'
-      : debouncedQuery.trim()
-        ? '/3/search/multi'
-        : filter === 'soon'
-          ? `/3/discover/movie?primary_release_date.gte=today&sort_by=primary_release_date.asc${
-              genre ? `&with_genres=${genre.id}` : ''
-            }`
-          : genre === null
-            ? filter === 'all'
-              ? '/3/trending/all/day'
-              : `/3/${filter}/popular`
-            : filter === 'all'
-              ? genre.tvId === null
-                ? `/3/discover/movie?with_genres=${genre.id}`
-                : `/3/discover/movie?with_genres=${genre.id} + /3/discover/tv?with_genres=${genre.tvId}`
-              : filter === 'tv'
-                ? `/3/discover/tv?with_genres=${genre.tvId}`
-                : `/3/discover/movie?with_genres=${genre.id}`
+  const sourceLabel = isWatchlistView
+    ? currentUser
+      ? `saved to ${currentUser.email}`
+      : 'sign in to save titles'
+    : debouncedQuery.trim()
+      ? '/3/search/multi'
+      : filter === 'soon'
+        ? `/3/discover/movie?primary_release_date.gte=today&sort_by=primary_release_date.asc${
+            genre ? `&with_genres=${genre.id}` : ''
+          }`
+        : genre === null
+          ? filter === 'all'
+            ? '/3/trending/all/day'
+            : `/3/${filter}/popular`
+          : filter === 'all'
+            ? genre.tvId === null
+              ? `/3/discover/movie?with_genres=${genre.id}`
+              : `/3/discover/movie?with_genres=${genre.id} + /3/discover/tv?with_genres=${genre.tvId}`
+            : filter === 'tv'
+              ? `/3/discover/tv?with_genres=${genre.tvId}`
+              : `/3/discover/movie?with_genres=${genre.id}`
+
+  /**
+   * How many admin-authored titles are folded into the feed being shown. Shown
+   * next to the source so a locally added title in the grid is explainable
+   * without opening the admin panel.
+   */
+  const localCount =
+    !isWatchlistView && filter !== 'soon' ? customMedia.length : 0
 
   function selectCategory(category: Category) {
     setFilter(category)
@@ -1621,11 +2034,11 @@ export function MoviePlatformApp() {
         active={filter}
         onSelectCategory={selectCategory}
         watchlistCount={watchlist.length}
-        customCount={customMovies.length}
         user={currentUser}
         onSignIn={() => openAuth('login')}
         onSignOut={handleSignOut}
         onOpenAdmin={() => setAdminOpen(true)}
+        onOpenProfile={() => setProfileOpen(true)}
         onOpenTeam={() => setTeamOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1640,9 +2053,14 @@ export function MoviePlatformApp() {
 
       <main id="popular" className="mx-auto max-w-6xl px-4 py-10">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
+          {/* `min-w-0` + `break-words`: the source string is a single long
+              token like `/3/discover/movie?primary_release_date.gte…`, which
+              would otherwise set the page's minimum width on a phone. */}
+          <div className="min-w-0">
             <h2 className="text-2xl font-bold">{heading}</h2>
-            <p className="mt-1 font-mono text-xs text-ink-muted">source: {sourceLabel}</p>
+            <p className="mt-1 break-words font-mono text-xs text-ink-muted">
+              source: {sourceLabel}
+            </p>
           </div>
 
           <div
@@ -1673,11 +2091,12 @@ export function MoviePlatformApp() {
           <GenreChips active={genre} category={filter} onSelect={setGenre} />
         )}
 
-        {isCustomView && (
+        {localCount > 0 && (
           <p className="mb-4 rounded-xl bg-page/40 p-4 text-sm text-ink-soft ring-1 ring-line">
-            Titles added by an admin, stored on this device. They sit beside the
-            TMDB catalogue in their own tab so the trending and popularity feeds
-            stay untouched.{' '}
+            <span className="font-semibold text-ink">
+              {localCount} locally added {localCount === 1 ? 'title' : 'titles'}
+            </span>{' '}
+            sit at the end of this feed, stored on this device.{' '}
             {isAdmin ? 'Manage them under Admin Panel → Movies.' : ''}
           </p>
         )}
@@ -1711,7 +2130,6 @@ export function MoviePlatformApp() {
                 isSaved={isSaved}
                 onSelect={setSelected}
                 onToggleWatchlist={toggleWatchlist}
-                onPlayTrailer={setTrailerItem}
               />
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -1763,36 +2181,24 @@ export function MoviePlatformApp() {
           </>
         ) : (
           <div className="py-20 text-center text-ink-muted">
-            <p className="text-4xl">
-              {isCustomView ? '🎞️' : isWatchlistView ? '🎬' : '🔎'}
-            </p>
+            <p className="text-4xl">{isWatchlistView ? '🎬' : '🔎'}</p>
             <p className="mt-4 text-lg font-semibold">
               {needle
                 ? `No results for “${query.trim()}”`
-                : isCustomView
-                  ? customMovies.length === 0
-                    ? 'No custom titles yet'
-                    : 'Nothing matches these filters'
-                  : isWatchlistView
-                    ? 'Your watchlist is empty'
-                    : activeYear !== null
-                      ? `No titles released in ${activeYear}`
+                : isWatchlistView
+                  ? 'Your watchlist is empty'
+                  : activeYear !== null
+                    ? `No titles released in ${activeYear}`
                       : genre
-                        ? `No ${genre.name} titles found`
-                        : 'Nothing here yet'}
+                      ? `No ${genre.name} titles found`
+                      : 'Nothing here yet'}
             </p>
             <p className="mt-1 text-sm">
-              {isCustomView
-                ? customMovies.length === 0
-                  ? isAdmin
-                    ? 'Open Admin Panel → Movies to add the first one.'
-                    : 'An admin can add titles from the Admin Panel.'
-                  : 'Pick a different year or clear the filters.'
-                : isWatchlistView
-                  ? 'Tap ＋ on any movie or show to save it here.'
-                  : activeYear !== null
-                    ? 'Pick a different year or clear the filters.'
-                    : 'Try a different title, genre, or clear the search.'}
+              {isWatchlistView
+                ? 'Tap ＋ on any movie or show to save it here.'
+                : activeYear !== null
+                  ? 'Pick a different year or clear the filters.'
+                  : 'Try a different title, genre, or clear the search.'}
             </p>
           </div>
         )}
@@ -1917,6 +2323,17 @@ export function MoviePlatformApp() {
       )}
 
       {teamOpen && <TeamPage onClose={() => setTeamOpen(false)} />}
+
+      {/* Keyed by email so an address change inside the dialog re-points it at the
+          saved account rather than leaving it editing a stale one. */}
+      {profileOpen && currentUser && (
+        <ProfileSettings
+          key={currentUser.email}
+          users={users}
+          account={currentUser}
+          onClose={closeProfile}
+        />
+      )}
     </div>
   )
 }

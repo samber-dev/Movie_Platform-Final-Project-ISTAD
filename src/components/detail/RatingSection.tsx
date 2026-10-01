@@ -15,6 +15,7 @@ import {
 } from '../../lib/ratingStore'
 import type { UserRating } from '../../lib/ratingStore'
 import type { Media } from '../../types'
+import { recordMediaActivity, useActorEmail } from '../../lib/activityStore'
 import { scoreColor } from './sectionUtils'
 
 /**
@@ -149,6 +150,7 @@ export function RatingSection({
   const [preview, setPreview] = useState<number | null>(null)
   const [draft, setDraft] = useState(0)
   const [notice, setNotice] = useState('')
+  const actor = useActorEmail()
 
   const committed = saved?.stars ?? 0
   /** What is actually selected: an unsubmitted pick, else what is stored. */
@@ -166,6 +168,12 @@ export function RatingSection({
   function commit() {
     if (draft < MIN_RATING) return
     const next = saveUserRating(item, draft)
+    recordMediaActivity(
+      'rating.saved',
+      `Rated ${next.stars}/5`,
+      item,
+      actor,
+    )
     setSaved(next)
     setDraft(0)
     setNotice(`Rating saved: ${next.stars} out of 5.`)
@@ -174,6 +182,7 @@ export function RatingSection({
 
   function clear() {
     clearUserRating(item)
+    recordMediaActivity('rating.saved', 'Removed their rating for', item, actor)
     setSaved(null)
     setDraft(0)
     setNotice('Rating removed. Showing the TMDB community score again.')

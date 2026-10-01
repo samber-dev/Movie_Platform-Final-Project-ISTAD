@@ -752,6 +752,25 @@ html.light {
     opacity: 0.55;
   }
 
+  /* Admin panel section switch. Short fade-and-rise: the panel is a dialog, so
+     the transition has to feel like a page turn inside it rather than a
+     navigation. Capped at 8px of travel — enough to read as directional, not
+     enough to look like the content is being thrown at the reader. */
+  .admin-section-enter {
+    animation: admin-section-enter 0.26s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  }
+
+  @keyframes admin-section-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* Theme toggle pill. */
   /* Shared circular icon button. `.theme-toggle` layers its own spin on top of
      this, so the About Us pill in the mobile header reuses the chrome without
@@ -917,8 +936,21 @@ html.light {
     display: flex;
     align-items: center;
     justify-content: center;
-    /* `100%` here is the frame's width, so this caps at the card and the other
-       term caps at the band: whichever is tighter, the plate hugs the photo. */
+    /* Width-first, and the height is left to `aspect-ratio`. This is what keeps
+       "no crop and no letterbox" true: the plate shrinks to the photo at every
+       size, so whichever axis runs out first is the axis the photo is scaled
+       against, and `contain` inside a plate that already has the photo's shape
+       has nothing left to do. Measured dead bar is 0px on both axes at 1440,
+       1024 and 375px.
+
+       Declaring `height: 100%` instead also measures zero dead bar, so that is
+       not the deciding factor — it is worse because the plate stops being
+       width-limited and becomes band-limited, and a near-square photo at the full
+       24rem band is then WIDER than the card. That width resolves through
+       `flex stretch` on the definite-width frame, which grows the card to fit:
+       Roth's card came out 370px against 357px for its neighbours, and 370px
+       against 315px at 1024px. The row loses its uniform width instead of its
+       uniform height. */
     width: min(100%, calc(var(--photo-h) * var(--photo-ar)));
     aspect-ratio: var(--photo-ratio, 1);
     overflow: hidden;
@@ -953,6 +985,41 @@ html.light {
     /* Same dark mat in light mode: a photo on a dark backing reads the same
        either way, and lightening it puts a pale photo back into the card. */
     background-color: rgb(0 0 0 / 0.28);
+  }
+
+  /* ---- Supervisor card -------------------------------------------------
+     A two-column card above the carousel: portrait left, text right, on a
+     desktop row. Its own rule because it is a different shape from the member
+     cards, not a variant of one — the carousel needs five equal cards that a
+     track can scroll, and a card that breaks that rhythm would make the row
+     itself uneven. */
+  .team-supervisor {
+    display: grid;
+    gap: 0;
+    align-items: stretch;
+  }
+  @media (min-width: 768px) {
+    .team-supervisor {
+      /* Fixed photo column so the picture does not resize with the text. */
+      grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    }
+  }
+  /* The photo keeps the member cards' width-first sizing rather than switching
+     to a definite height. Sizing it height-first here was tempting — the photo
+     would then fill the card's full height — but it reintroduces exactly the
+     defect the member cards were fixed for: a height-first plate is as wide as
+     the band, so a near-square photo letterboxes inside its own backing. This
+     file is 1170x1147, so that would paint bars down both sides of it. */
+  .team-supervisor .team-photo-frame {
+    --photo-h: 16rem;
+  }
+  @media (min-width: 768px) {
+    .team-supervisor .team-photo-frame {
+      /* Height follows the photo's own ratio within the 20rem column, so the
+         plate is 20rem wide and ~19.6rem tall and the text column simply sits
+         beside it. */
+      --photo-h: 20rem;
+    }
   }
 
   /* Journey paragraph panel — same glass as the cards, one step flatter. */
@@ -1213,16 +1280,38 @@ html.light {
     box-shadow: 0 0 14px -2px color-mix(in oklab, var(--color-accent) 70%, transparent);
   }
 
+  /* Tech stack tags. Slightly larger and higher-contrast than plain chips: these
+     carry what each member actually works on, so they get an accent-tinted
+     surface and a matching rim instead of the neutral page wash the quotes and
+     blurbs sit on. The hover lift is on the tag, not the card, so scanning a row
+     of cards reads as the stack lighting up. */
   .team-tag {
+    display: inline-flex;
+    align-items: center;
     border-radius: 999px;
-    padding: 0.25rem 0.625rem;
+    padding: 0.3125rem 0.6875rem;
     font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     color: var(--color-ink-soft);
-    background-color: color-mix(in oklab, var(--color-page) 62%, transparent);
-    box-shadow: inset 0 0 0 1px var(--color-line);
+    background-color: color-mix(in oklab, var(--color-accent) 10%, var(--color-surface) 70%);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 24%, transparent);
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  .team-card:hover .team-tag {
+    color: var(--color-ink);
+    background-color: color-mix(in oklab, var(--color-accent) 20%, var(--color-surface) 60%);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 42%, transparent);
+  }
+  /* Staggered so a four-tag row cascades rather than snapping up as one block. */
+  .team-card:hover .team-tag:nth-child(1) { transform: translateY(-2px); }
+  .team-card:hover .team-tag:nth-child(2) { transform: translateY(-2px) translateX(1px); }
+  .team-card:hover .team-tag:nth-child(3) { transform: translateY(-2px) translateX(2px); }
+  .team-card:hover .team-tag:nth-child(4) { transform: translateY(-2px) translateX(3px); }
 
   .team-link {
     display: inline-flex;
@@ -1262,6 +1351,18 @@ html.light {
       inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 30%, transparent),
       var(--shadow-neon-lift);
   }
+  /* Tags invert in light mode: the dark-theme tint reads as a grey smudge on a
+     warm surface, so the hover goes the other way — terracotta on cream. */
+  html.light .team-tag {
+    color: var(--color-ink-soft);
+    background-color: color-mix(in oklab, var(--color-accent) 12%, var(--color-surface) 80%);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 30%, transparent);
+  }
+  html.light .team-card:hover .team-tag {
+    color: var(--color-ink);
+    background-color: color-mix(in oklab, var(--color-accent) 22%, var(--color-surface) 70%);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 48%, transparent);
+  }
 }
 
 /* Respect reduced-motion: strip the decorative loops, keep static styling. */
@@ -1279,7 +1380,8 @@ html.light {
 @media (prefers-reduced-motion: reduce) {
   .animate-neon-pulse,
   .animate-neon-flicker,
-  .animate-neon-rise {
+  .animate-neon-rise,
+  .admin-section-enter {
     animation: none !important;
   }
   .btn-neon,
@@ -1319,6 +1421,15 @@ html.light {
   }
   /* The photo lift is motion too, so the still frame is what remains. */
   .team-card:hover .team-photo-img {
+    transform: none !important;
+  }
+  /* Same for the staggered tag cascade: the colour change above still happens,
+     only the movement is dropped. Listed explicitly rather than relying on a
+     descendant selector, so the intent survives a tag layout change. */
+  .team-card:hover .team-tag:nth-child(1),
+  .team-card:hover .team-tag:nth-child(2),
+  .team-card:hover .team-tag:nth-child(3),
+  .team-card:hover .team-tag:nth-child(4) {
     transform: none !important;
   }
   /* Autoplay is off entirely under reduced motion, so the dwell bar has nothing

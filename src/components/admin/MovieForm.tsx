@@ -8,9 +8,13 @@ import {
   useCustomMovies,
   validateDraft,
 } from '../../lib/customMovieStore'
-import type { CustomMovieDraft, CustomMovieInput, FieldErrors } from '../../lib/customMovieStore'
+import type {
+  CustomMovieDraft,
+  CustomMovieInput,
+  FieldErrors,
+} from '../../lib/customMovieStore'
 
-const EMPTY_DRAFT: CustomMovieDraft = {
+export const EMPTY_DRAFT: CustomMovieDraft = {
   title: '',
   releaseYear: '',
   genre: '',
@@ -24,10 +28,6 @@ const label =
 /** Shared by every control so the error ring matches the resting ring. */
 function control(hasError: boolean): string {
   return `neon-input ${hasError ? 'ring-1 ring-score-low' : ''}`
-}
-
-type Props = {
-  onAdd: (input: CustomMovieInput) => void
 }
 
 /**
@@ -49,17 +49,38 @@ function previewable(url: string): string {
   }
 }
 
-export function AddMovieForm({ onAdd }: Props) {
+type Props = {
+  /** Drives the heading, the submit label and the confirmation wording. */
+  mode: 'add' | 'edit'
+  /**
+   * Keyed by the caller on the title being edited, so switching rows starts a
+   * fresh draft instead of syncing one through an effect.
+   */
+  initial?: CustomMovieDraft
+  onSubmit: (input: CustomMovieInput) => void
+  /** Present in edit mode only, where leaving the form has to be possible. */
+  onCancel?: () => void
+}
+
+/**
+ * The one form behind both "Add movie" and "Edit movie".
+ *
+ * Validation lives in `validateDraft` rather than here, so a title can never be
+ * committed under different rules depending on which button opened this: the
+ * same limits, the same URL rules, the same errors, reported all at once.
+ */
+export function MovieForm({ mode, initial, onSubmit, onCancel }: Props) {
   const fieldId = useId()
-  const [draft, setDraft] = useState<CustomMovieDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = useState<CustomMovieDraft>(initial ?? EMPTY_DRAFT)
   const [errors, setErrors] = useState<FieldErrors>({})
-  const [added, setAdded] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
   const movies = useCustomMovies()
 
+  const editing = mode === 'edit'
   // The confirmation names one specific title, so it has to stop claiming that
   // title is in the catalogue once it has been deleted again.
-  const addedIsStillListed = added !== null && movies.some((movie) => movie.title === added)
-
+  const savedIsStillListed =
+    saved !== null && movies.some((movie) => movie.title === saved)
   const preview = previewable(draft.posterUrl)
   const overviewLength = draft.overview.length
 
@@ -73,7 +94,7 @@ export function AddMovieForm({ onAdd }: Props) {
       delete next[field]
       return next
     })
-    setAdded(null)
+    setSaved(null)
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -81,13 +102,16 @@ export function AddMovieForm({ onAdd }: Props) {
     const result = validateDraft(draft)
     if (!result.ok) {
       setErrors(result.errors)
-      setAdded(null)
+      setSaved(null)
       return
     }
-    onAdd(result.value)
-    setDraft(EMPTY_DRAFT)
+    onSubmit(result.value)
+    // An edited row is refilled from what was just written rather than cleared,
+    // so a second pass at the same title starts from the saved values.
+    if (editing) setDraft(initial ?? EMPTY_DRAFT)
+    else setDraft(EMPTY_DRAFT)
     setErrors({})
-    setAdded(result.value.title)
+    setSaved(result.value.title)
   }
 
   return (
@@ -101,10 +125,12 @@ export function AddMovieForm({ onAdd }: Props) {
         id={`${fieldId}-heading`}
         className="text-sm font-extrabold uppercase tracking-[0.18em] text-accent"
       >
-        Add a title
+        {editing ? 'Edit title' : 'Add a title'}
       </h3>
       <p className="mt-1 text-xs text-ink-muted">
-        Saved to this device and published to the Custom tab immediately.
+        {editing
+          ? 'Changes are written to this device and appear in the Movies feed straight away.'
+          : 'Saved to this device and published to the Movies feed immediately.'}
       </p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
@@ -261,13 +287,22 @@ export function AddMovieForm({ onAdd }: Props) {
         </div>
       </div>
 
-      <div className="mt-5 flex items-center gap-3">
+      <div className="mt-5 flex flex-wrap items-center gap-3">
         <button type="submit" className="btn-neon px-5 py-2.5">
-          ＋ Add movie
+          {editing ? '✓ Save changes' : '＋ Add movie'}
         </button>
-        {addedIsStillListed && (
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl bg-surface-3 px-4 py-2.5 text-sm font-bold text-ink-soft ring-1 ring-line transition hover:bg-surface-2 hover:text-ink"
+          >
+            Cancel
+          </button>
+        )}
+        {savedIsStillListed && (
           <p className="text-xs font-semibold text-accent-2">
-            ✓ “{added}” is now in the Custom tab
+            ✓ “{saved}” {editing ? 'updated' : 'is now in the Movies feed'}
           </p>
         )}
       </div>

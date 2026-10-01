@@ -33,6 +33,12 @@ export type CustomMovie = {
   releaseYear: number
   genre: string
   createdAt: string
+  /**
+   * Set the first time a title is edited, so the admin list can say a row was
+   * revised rather than implying it was just added. Absent until then, and
+   * absent on titles written before editing existed — hence optional.
+   */
+  updatedAt?: string
 }
 
 /** The fields the admin form collects; `id` and `createdAt` are assigned here. */
@@ -45,6 +51,21 @@ export type FieldErrors = Partial<Record<keyof CustomMovieInput, string>>
 
 /** The raw strings a form holds before validation turns them into a value. */
 export type CustomMovieDraft = Record<keyof CustomMovieInput, string>
+
+/**
+ * The inverse of `CustomMovieInput`: a stored title back into editable strings.
+ * The year is stringified here so the form's year control — which is a text
+ * input, because it also has to reject "97" and "twenty" — never has to.
+ */
+export function toDraft(movie: CustomMovie): CustomMovieDraft {
+  return {
+    title: movie.title,
+    releaseYear: String(movie.releaseYear),
+    genre: movie.genre,
+    posterUrl: movie.posterUrl,
+    overview: movie.overview,
+  }
+}
 
 export type ValidationResult =
   | { ok: true; value: CustomMovieInput }
@@ -152,6 +173,10 @@ function normalizeMovie(movie: CustomMovie): CustomMovie {
     genre: typeof movie.genre === 'string' ? movie.genre : '',
     createdAt:
       typeof movie.createdAt === 'string' ? movie.createdAt : new Date().toISOString(),
+    // Kept only when it really is a timestamp, so a hand-edited storage entry
+    // cannot make the admin list render "edited undefined".
+    updatedAt:
+      typeof movie.updatedAt === 'string' ? movie.updatedAt : undefined,
   }
 }
 
@@ -207,7 +232,7 @@ export function toMedia(movie: CustomMovie): Media {
    Same shape as `usePersistedAuth`: one document, one write path, and
    `useSyncExternalStore` so the prerendered shell and the first client render
    agree. Without it, an admin who has added titles would get a hydration
-   mismatch on the Custom tab on every visit.
+   mismatch on the Movies feed on every visit.
    ========================================================================== */
 
 const EMPTY: CustomMovie[] = []
@@ -270,6 +295,33 @@ export function addCustomMovie(input: CustomMovieInput): CustomMovie {
   }
   setCustomMovies((current) => [movie, ...current])
   return movie
+}
+
+/**
+ * Rewrites the five editable fields of an existing title and returns it.
+ *
+ * `id` and `createdAt` are deliberately not editable: the id is the identity the
+ * watchlist and the review/rating keys are built from, so changing it would
+ * silently orphan every save pointing at that title, and the original add date
+ * stays true however many times the row is revised.
+ *
+ * Returns null when the id is not in the catalogue, which is reachable — the
+ * admin list and this store are the same snapshot, so a delete from another tab
+ * can land between the click and the save.
+ */
+export function updateCustomMovie(
+  id: number,
+  input: CustomMovieInput,
+): CustomMovie | null {
+  const current = getSnapshot().find((movie) => movie.id === id)
+  if (current === undefined) return null
+  const updated: CustomMovie = {
+    ...current,
+    ...input,
+    updatedAt: new Date().toISOString(),
+  }
+  setCustomMovies((list) => list.map((movie) => (movie.id === id ? updated : movie)))
+  return updated
 }
 
 export function deleteCustomMovie(id: number): void {
