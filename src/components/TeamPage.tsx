@@ -109,7 +109,7 @@ const TEAM: TeamMember[] = [
     id: 'sambat-samber',
     name: 'Sambat Samber',
     role: 'Lead Developer & Project Creator',
-    image: '/BOSS.jpg',
+    image: '/ber.jpg',
     width: 720,
     height: 1280,
     blurb:

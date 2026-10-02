@@ -13,6 +13,7 @@ import { PersonQuickLook } from './PersonQuickLook'
 import { TeamPage } from './TeamPage'
 import { setPersistedAuth, usePersistedAuth } from '../lib/authStore'
 import { recordActivity, recordMediaActivity } from '../lib/activityStore'
+import Footer from './Footer'
 import {
   discoverUrl,
   feedUrl,
@@ -877,8 +878,8 @@ function Navbar({
             <span className="block truncate text-[15px] font-extrabold tracking-tight text-ink">
               Angkor<span className="neon-text">Cinemas</span>
             </span>
-            <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-muted md:block">
-              Movie Platform
+            <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-ink-muted">
+              MOVIE PLATFORM
             </span>
           </span>
         </button>
@@ -2204,38 +2205,7 @@ export function MoviePlatformApp() {
         )}
       </main>
 
-      <footer className="border-t border-line py-8 text-center text-xs text-ink-muted">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4">
-          <p className="text-ink-soft">AngkorCinemas © 2026 · A Movie Platform demo</p>
-
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <button
-              type="button"
-              onClick={() => setTeamOpen(true)}
-              className="font-semibold text-ink-soft underline-offset-4 transition hover:text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              About Us
-            </button>
-            <span aria-hidden="true" className="text-ink-muted">
-              ·
-            </span>
-
-            {/* TMDB requires visible credit for API use plus a non-endorsement note. */}
-            <p className="max-w-lg text-pretty">
-              Uses the{' '}
-              <a
-                href="https://www.themoviedb.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-ink-soft underline-offset-4 transition hover:text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                TMDB API
-              </a>
-              . This product is not endorsed or certified by TMDB.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer onOpenTeam={() => setTeamOpen(true)} />
 
       {selected && (
         <MovieDetail
